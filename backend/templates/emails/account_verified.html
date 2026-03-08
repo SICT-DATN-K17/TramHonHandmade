@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Account Verified</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f6f9fc;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px;
+            color: #334155;
+            line-height: 1.6;
+            text-align: center; /* Căn giữa nội dung cho thông báo thành công */
+        }
+        /* CSS Mới cho icon thành công */
+        .success-icon {
+            background-color: #d1fae5;
+            color: #10b981;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px auto;
+            font-size: 40px;
+        }
+        /* CSS Mới cho nút bấm (Button) */
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+            color: white;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .footer {
+            background-color: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Tài khoản đã được xác thực!</h1>
+    </div>
+    <div class="content">
+        <div class="success-icon">
+            &#10003; </div>
+
+        <p>Xin chào <strong>{{ name }}</strong>,</p>
+        <p>Chúc mừng! Địa chỉ email của bạn đã được xác thực thành công.</p>
+        <p>Bây giờ bạn có thể đăng nhập và bắt đầu sử dụng tài khoản Trạm Hồn của mình.</p>
+
+        <a href="{{ loginUrl }}" class="btn">Đăng nhập ngay</a>
+
+        <p style="margin-top: 30px; font-size: 14px; color: #64748b;">
+            Nếu nút trên không hoạt động, vui lòng sao chép và dán liên kết sau vào trình duyệt của bạn:<br>
+            <a href="{{ loginUrl }}" style="color: #4f46e5;">{{ loginUrl }}</a>
+        </p>
+    </div>
+    <div class="footer">
+        <p>&copy; {% now "Y" %} TramHon. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

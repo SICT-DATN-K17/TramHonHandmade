@@ -1,0 +1,89 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Kích hoạt tài khoản</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f6f9fc;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px;
+            color: #334155;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+            color: white !important;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+        }
+        .footer {
+            background-color: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+        }
+        .warning {
+            color: #ef4444;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Xác thực tài khoản của bạn</h1>
+    </div>
+    <div class="content">
+        <p>Xin chào {{ user.name }},</p>
+        <p>Cảm ơn bạn đã đăng ký tài khoản tại {{ site_name }}. Vui lòng nhấp vào nút bên dưới để kích hoạt tài khoản của bạn:</p>
+        
+        <p style="text-align: center;">
+            <a href="{{ url }}" class="btn">Kích hoạt tài khoản</a>
+        </p>
+
+        <p style="margin-top: 30px; font-size: 14px; color: #64748b;">
+            Nếu nút trên không hoạt động, vui lòng sao chép và dán liên kết sau vào trình duyệt của bạn:<br>
+            <a href="{{ url }}" style="color: #4f46e5;">{{ url }}</a>
+        </p>
+        
+        <p class="warning">Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email này.</p>
+    </div>
+    <div class="footer">
+        <p>&copy; {% now "Y" %} TramHon. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

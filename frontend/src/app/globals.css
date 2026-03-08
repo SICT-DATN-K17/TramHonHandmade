@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@tailwind utilities;
+
+:root {
+  --background: 35 43% 94%;
+  --foreground: 23 30% 19%;
+  --card: 35 43% 94%;
+  --card-foreground: 23 30% 19%;
+  --popover: 25 26% 33%;
+  --popover-foreground: 35 43% 94%;
+  --primary: 23 65% 54%;
+  --primary-foreground: 35 43% 94%;
+  --secondary: 38 46% 87%;
+  --secondary-foreground: 23 30% 19%;
+  --muted: 38 46% 87%;
+  --muted-foreground: 25 26% 33%;
+  --accent: 38 46% 87%;
+  --accent-foreground: 23 30% 19%;
+  --border: 38 46% 87%;
+  --input: 38 46% 87%;
+  --ring: 23 65% 54%;
+  --radius: 0.5rem;
+}
+@layer base {
+  :root {
+    --background: 35 43% 94%;
+    --foreground: 23 30% 19%;
+    --card: 35 43% 94%;
+    --card-foreground: 23 30% 19%;
+    --popover: 25 26% 33%;
+    --popover-foreground: 35 43% 94%;
+    --primary: 23 65% 54%;
+    --primary-foreground: 35 43% 94%;
+    --secondary: 38 46% 87%;
+    --secondary-foreground: 23 30% 19%;
+    --muted: 38 46% 87%;
+    --muted-foreground: 25 26% 33%;
+    --accent: 38 46% 87%;
+    --accent-foreground: 23 30% 19%;
+    --border: 38 46% 87%;
+    --input: 38 46% 87%;
+    --ring: 23 65% 54%;
+    --radius: 0.5rem;
+  }
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+  .admin-theme {
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 47.4% 11.2%;
+  }
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+}

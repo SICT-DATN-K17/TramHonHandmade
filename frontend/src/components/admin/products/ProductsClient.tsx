@@ -1,0 +1,343 @@
+'use client';
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Plus, Edit, Trash, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Product, Category } from '@/types';
+import useAxiosAuth from '@/hooks/useAxiosAuth';
+import { RawCategoryResponse } from '@/types/apiTypes';
+import { mapToEnrichedCategory } from '@/utils/CategoryMapper';
+import { DataTable } from '@/components/ui/data-table';
+import { ColumnDef } from '@tanstack/react-table';
+import toast, { Toast } from 'react-hot-toast';
+import Image from 'next/image';
+
+// --- Filter Definitions ---
+const PRICE_RANGES = [
+    { id: 'all', label: 'Mọi mức giá', min: 0, max: Infinity },
+    { id: 'under-100k', label: 'Dưới 100.000đ', min: 0, max: 100000 },
+    { id: '100k-200k', label: '100.000 - 200.000đ', min: 100000, max: 200000 },
+    { id: '200k-500k', label: '200.000 - 500.000đ', min: 200000, max: 500000 },
+    { id: 'over-500k', label: 'Trên 500.000đ', min: 500000, max: Infinity },
+];
+
+const SORT_OPTIONS = [
+    { id: 'featured', label: 'Nổi bật (bán chạy)' },
+    { id: 'price-asc', label: 'Giá: Thấp đến Cao' },
+    { id: 'price-desc', label: 'Giá: Cao đến Thấp' },
+    { id: 'name-asc', label: 'Tên: A-Z' },
+    { id: 'name-desc', label: 'Tên: Z-A' },
+];
+
+// --- Reusable Styled Components (as per new pattern) ---
+const inputStyles: React.CSSProperties = {
+    backgroundColor: '#FFF8F0',
+    borderColor: '#D96C39',
+    color: '#3F2E23',
+    borderWidth: '1px',
+    borderRadius: '9999px',
+    padding: '0.5rem 1rem',
+    boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    width: '100%',
+};
+
+// --- Main Component ---
+interface ProductsClientProps {
+    data: Product[];
+}
+
+export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
+    const router = useRouter();
+
+    // 1. Khởi tạo hook axiosAuth
+    const axiosAuth = useAxiosAuth();
+
+    // --- State for Filters ---
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategoryId, setSelectedCategoryId] = useState<'all' | number>('all');
+    const [priceRange, setPriceRange] = useState('all');
+    const [sortBy, setSortBy] = useState('featured');
+    const [isLoading, setIsLoading] = useState(true);
+
+    // 2. Fetch Categories dùng axiosAuth
+    useEffect(() => {
+        const getCategories = async () => {
+            try {
+                setIsLoading(true);
+                // Sử dụng axiosAuth.get
+                const response = await axiosAuth.get<RawCategoryResponse[]>('/category/');
+                const rawCats = response.data; // Lấy data từ response
+
+                const cats = rawCats.map(mapToEnrichedCategory);
+                setCategories(cats);
+            } catch (error) {
+                console.error("Failed to fetch categories", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        getCategories();
+    }, [axiosAuth]); // Thêm axiosAuth vào dependency
+
+    const filteredProducts = useMemo(() => {
+        return data
+            .filter(product => {
+                const matchesCategory = selectedCategoryId === 'all' || product.category_id === selectedCategoryId;
+
+                const matchesSearch = searchQuery === '' ||
+                    product.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+                const priceRange_ = PRICE_RANGES.find(r => r.id === priceRange);
+                const price = Number(product.price) || 0;
+                const matchesPrice = priceRange_ ? (price >= priceRange_.min && price <= priceRange_.max) : true;
+
+                return matchesCategory && matchesSearch && matchesPrice;
+            })
+            .sort((a, b) => {
+                switch (sortBy) {
+                    case 'price-asc':
+                        return (Number(a.price) || 0) - (Number(b.price) || 0);
+                    case 'price-desc':
+                        return (Number(b.price) || 0) - (Number(a.price) || 0);
+                    case 'name-asc':
+                        return a.name.localeCompare(b.name);
+                    case 'name-desc':
+                        return b.name.localeCompare(a.name);
+                    case 'featured':
+                    default:
+                        return (b.quantity_sold || 0) - (a.quantity_sold || 0);
+                }
+            });
+    }, [data, searchQuery, selectedCategoryId, priceRange, sortBy]);
+
+    const title = useMemo(() => {
+        if (selectedCategoryId === 'all') {
+            return `Tất cả sản phẩm (${filteredProducts.length})`;
+        }
+        const category = categories.find(c => c.id === selectedCategoryId);
+        const categoryName = category ? category.name : 'Sản phẩm';
+        return `${categoryName} (${filteredProducts.length})`;
+    }, [selectedCategoryId, categories, filteredProducts.length]);
+
+    const handleRowClick = (product: Product) => {
+        router.push(`/admin/products/${product.id}`);
+    };
+
+    const confirmDeleteAction = (name: string, onConfirm: () => void) => {
+        toast(
+            (t: Toast) => (
+                <div className="flex flex-col items-center gap-4 p-6 bg-white rounded-lg shadow-2xl border border-red-300 max-w-md">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="h-10 w-10 text-red-500" />
+                        <h3 className="text-2xl font-bold text-red-700">Xác nhận xóa</h3>
+                    </div>
+                    <p className="text-center text-gray-700 mt-2">
+                        Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa vĩnh viễn sản phẩm <strong className="text-red-600">&quot;{name}&quot;</strong> không?
+                    </p>
+                    <div className="flex w-full justify-center gap-4 mt-4">
+                        <button
+                            className="px-6 py-2 text-base font-semibold rounded-full text-white bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                            onClick={() => {
+                                onConfirm();
+                                toast.dismiss(t.id);
+                            }}
+                        >
+                            Xóa vĩnh viễn
+                        </button>
+                        <button
+                            className="px-6 py-2 text-base font-semibold rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+                            onClick={() => toast.dismiss(t.id)}
+                        >
+                            Hủy
+                        </button>
+                    </div>
+                </div>
+            ),
+            {
+                duration: Infinity,
+            }
+        );
+    };
+
+    // 3. Delete Product dùng axiosAuth
+    const handleDeleteProduct = useCallback((productId: number, name: string) => {
+        confirmDeleteAction(name, async () => {
+            try {
+                // Sử dụng axiosAuth.delete
+                await axiosAuth.delete(`/products/${productId}/`);
+
+                toast.success(`Đã xóa sản phẩm "${name}" thành công.`);
+                // Trigger custom event to refresh products list
+                window.dispatchEvent(new Event('products-refresh'));
+                router.refresh(); // Tải lại dữ liệu từ server để cập nhật bảng
+            } catch (error) {
+                console.error("Failed to delete product:", error);
+                toast.error(`Xóa sản phẩm "${name}" thất bại.`);
+            }
+        });
+    }, [router, axiosAuth]); // Thêm axiosAuth vào dependency
+
+    const columns: ColumnDef<Product>[] = useMemo(() => [
+        {
+            id: 'product',
+            header: () => <div style={{ width: '200px', minWidth: '300px' }}>Sản phẩm</div>,
+            cell: ({ row }) => {
+                const product = row.original;
+                // Normalize image URL: convert protocol-relative URLs (//) to absolute URLs (https://)
+                let imageUrl = product.image ? product.image : '/tramhon-logo.png';
+                if (imageUrl.startsWith('//')) {
+                    imageUrl = `https:${imageUrl}`;
+                } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+                    imageUrl = `/${imageUrl}`;
+                }
+                return (
+                    <div className="flex items-center gap-4 font-medium" style={{ color: '#3F2E23' }}>
+                        <div className="flex-shrink-0">
+                            <Image src={imageUrl} alt={product.name} width={48} height={48} className="rounded-md object-cover" />
+                        </div>
+                        <span className="font-bold">{product.name}</span>
+                    </div>
+                );
+            }
+        },
+        {
+            id: 'category',
+            header: 'Danh mục',
+            cell: ({ row }) => {
+                const category = categories.find(c => c.id === row.original.category_id);
+                return <span className="text-sm" style={{ color: '#6B4F3E' }}>{category?.name || '---'}</span>;
+            }
+        },
+        { accessorKey: 'price', header: 'Giá', cell: ({ row }) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(row.original.price) },
+        { accessorKey: 'stock_quantity', header: 'Tồn kho' },
+        { accessorKey: 'status', header: 'Trạng thái', cell: ({ row }) => (
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${ row.original.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }`}>
+          {row.original.status === 'ACTIVE' ? 'Hoạt động' : 'Bị ẩn'}
+        </span>
+            )
+        },
+        {
+            id: 'actions',
+            header: () => <div className="text-right">Hành động</div>,
+            cell: ({ row }) => {
+                const product = row.original;
+                return (
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/admin/products/${product.id}`);
+                            }}
+                            className="p-2 rounded-full text-blue-500 hover:bg-blue-100 transition-colors"
+                            title="Xem chi tiết & Chỉnh sửa"
+                        ><Edit className="h-4 w-4" /></button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteProduct(product.id, product.name);
+                            }} className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors" title="Xóa sản phẩm"><Trash className="h-4 w-4" /></button>
+                    </div>
+                );
+            }
+        }
+    ], [router, categories, handleDeleteProduct]);
+
+    return (
+        <div className="space-y-8">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: '#3F2E23' }}>
+                        {title}
+                    </h1>
+                    <p className="text-sm" style={{ color: '#6B4F3E' }}>
+                        Dễ dàng quản lý, sắp xếp và theo dõi sản phẩm của bạn.
+                    </p>
+                </div>
+                <button
+                    onClick={() => router.push(`/admin/products/new`)}
+                    className="px-6 py-3 text-sm font-medium rounded-full shadow-md text-white transition-all transform hover:scale-105"
+                    style={{ backgroundColor: '#D96C39' }}
+                >
+                    <Plus className="mr-2 h-4 w-4 inline-block" />
+                    Thêm mới
+                </button>
+            </div>
+
+            {/* Filters UI */}
+            <div className="space-y-6 p-6 rounded-xl" style={{ backgroundColor: '#FDFBF7', border: '1px solid #E8D5B5' }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Search */}
+                    <div className="md:col-span-3">
+                        <label htmlFor="search" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Tìm kiếm</label>
+                        <input
+                            id="search"
+                            type="text"
+                            placeholder="Tìm theo tên sản phẩm..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={inputStyles}
+                            className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none"
+                        />
+                    </div>
+                    {/* Price Range */}
+                    <div>
+                        <label htmlFor="price-range" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Lọc theo giá</label>
+                        <select id="price-range" value={priceRange} onChange={e => setPriceRange(e.target.value)} style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none">
+                            {PRICE_RANGES.map(range => <option key={range.id} value={range.id}>{range.label}</option>)}
+                        </select>
+                    </div>
+                    {/* Sort By */}
+                    <div>
+                        <label htmlFor="sort-by" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Sắp xếp theo</label>
+                        <select id="sort-by" value={sortBy} onChange={e => setSortBy(e.target.value)} style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none">
+                            {SORT_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Category Filter */}
+                <div>
+                    <label className="block text-sm font-medium mb-3" style={{color: '#3F2E23'}}>Lọc theo danh mục</label>
+                    {isLoading ? (
+                        <div className="text-sm" style={{ color: '#6B4F3E' }}>Đang tải danh mục...</div>
+                    ) : (
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                onClick={() => setSelectedCategoryId('all')}
+                                className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 shadow-sm border"
+                                style={{
+                                    backgroundColor: selectedCategoryId === 'all' ? '#D96C39' : '#F7F1E8',
+                                    color: selectedCategoryId === 'all' ? 'white' : '#3F2E23',
+                                    borderColor: selectedCategoryId === 'all' ? '#D96C39' : '#D96C39'
+                                }}
+                            >
+                                Tất cả
+                            </button>
+                            {categories.map((category, index) => (
+                                <button
+                                    key={category.id ?? `category-${index}`}
+                                    onClick={() => setSelectedCategoryId(category.id)}
+                                    className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 shadow-sm border"
+                                    style={{
+                                        backgroundColor: selectedCategoryId === category.id ? '#D96C39' : '#F7F1E8',
+                                        color: selectedCategoryId === category.id ? 'white' : '#3F2E23',
+                                        borderColor: selectedCategoryId === category.id ? '#D96C39' : '#D96C39'
+                                    }}
+                                >
+                                    {category.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Product Table */}
+            <div className="rounded-xl" style={{ backgroundColor: '#FDFBF7', border: '1px solid #E8D5B5' }}>
+                <DataTable columns={columns} data={filteredProducts} onRowClick={handleRowClick} />
+            </div>
+        </div>
+    );
+};
