@@ -13,7 +13,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
-
+from dotenv import load_dotenv
+load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -252,3 +253,8 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'resend'
 EMAIL_HOST_PASSWORD = os.environ.get('RESEND_API_KEY')
 DEFAULT_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL') # Email người gửi mặc định
+
+ODOO_URL = os.getenv('ODOO_URL')
+ODOO_DB = os.getenv('ODOO_DB')
+ODOO_USER = os.getenv('ODOO_USER')
+ODOO_PASSWORD = os.getenv('ODOO_PASSWORD')
