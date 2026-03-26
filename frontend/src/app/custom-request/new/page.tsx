@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import { ArrowLeft, Upload, X } from 'lucide-react';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 interface FormValues {
     title: string;
@@ -23,6 +24,9 @@ interface FormErrors {
     title?: string;
     description?: string;
 }
+
+
+
 
 export default function NewCustomRequestPage() {
     const axiosAuth = useAxiosAuth();
@@ -104,36 +108,44 @@ export default function NewCustomRequestPage() {
             return;
         }
 
+
+
+
         setSubmitting(true);
+        let imageUrl = null;
+        const uploadToast = toast.loading('Đang xử lý yêu cầu...');
 
         try {
-            // --- CHUYỂN ĐỔI SANG FORMDATA (MULTIPART) ---
-            const formDataPayload = new FormData();
-
-            // Các trường text
-            formDataPayload.append('artisanId', '1'); // ID artisan mặc định hoặc logic chọn
-            // formDataPayload.append('productId', ''); // Nếu null thì có thể không append hoặc gửi chuỗi rỗng tùy backend
-            formDataPayload.append('title', formValues.title.trim());
-            formDataPayload.append('description', formValues.description.trim());
-
-            if (formValues.expected_price) {
-                formDataPayload.append('budget', formValues.expected_price);
-            }
-
-            // File ảnh (QUAN TRỌNG)
+            // 1. Upload ảnh lên Cloudinary nếu có ảnh được chọn
             if (selectedFile) {
-                // 'reference_image' phải trùng với tên tham số @RequestParam trong Controller Java
-                // Ví dụ: public ResponseEntity<?> initiateChat(@RequestParam("reference_image") MultipartFile file, ...)
-                formDataPayload.append('reference_image', selectedFile);
+                toast.loading('Đang tải ảnh lên...', { id: uploadToast });
+                try {
+                    imageUrl = await uploadToCloudinary(selectedFile, 'custom-request');
+                } catch {
+                    throw new Error('Lỗi khi tải ảnh lên. Vui lòng thử lại.');
+                }
             }
 
-            // Axios sẽ tự động set Header 'Content-Type': 'multipart/form-data' khi nhận thấy data là FormData
-            const response = await axiosAuth.post('/chat/initiate/', formDataPayload);
+            // 2. Chuẩn bị payload để gửi đến backend
+            toast.loading('Đang gửi yêu cầu thiết kế...', { id: uploadToast });
+            const payload = {
+                artisan_id: 1, // hoặc lấy đúng id nghệ nhân từ UI nếu có
+                // product_id: ... // nếu có chọn sản phẩm thì truyền, không thì bỏ
+                title: formValues.title.trim(),
+                description: formValues.description.trim() || null,
+                budget: formValues.expected_price ? Number(formValues.expected_price) : null,
+                reference_image: imageUrl || null,
+            };
 
-            toast.success('Gửi yêu cầu thành công!');
+            // 3. Gửi dữ liệu (bao gồm URL ảnh) đến backend
+            const response = await axiosAuth.post('/chat/initiate/', payload);
+
+            toast.success('Gửi yêu cầu thành công!', { id: uploadToast });
             router.push(`/chat/${response.data.chatId}`);
+
         } catch (error) {
-            toast.error('Có lỗi xảy ra khi gửi yêu cầu');
+            const errorMessage = (error as Error)?.message || 'Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.';
+            toast.error(errorMessage, { id: uploadToast });
             console.error(error);
         } finally {
             setSubmitting(false);

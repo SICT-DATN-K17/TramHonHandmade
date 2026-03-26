@@ -15,9 +15,21 @@ const nextConfig: NextConfig = {
     images: {
         unoptimized: true,
         remotePatterns: [
+            // Ảnh upload qua Cloudinary (chat, media Django default_storage)
+            {
+                protocol: 'https',
+                hostname: 'res.cloudinary.com',
+                pathname: '/**',
+            },
             {
                 protocol: 'http',
                 hostname: '127.0.0.1',
+                port: '8000',
+                pathname: '/uploads/**',
+            },
+            {
+                protocol: 'http',
+                hostname: 'localhost',
                 port: '8000',
                 pathname: '/uploads/**',
             },

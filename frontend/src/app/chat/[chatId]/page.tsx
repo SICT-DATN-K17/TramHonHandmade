@@ -19,15 +19,50 @@ import useAxiosAuth from '@/hooks/useAxiosAuth';
 import {ProductWithCategory} from "@/utils/ProductMapper";
 import {isProductOutOfStock} from "@/lib/inventory";
 import { useCart } from '@/contexts/CartContext';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 const API_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+
+
+
+// Chuẩn hóa URL ảnh (Cloudinary bị ghép đôi / scheme https:/ thiếu dấu /)
+const normalizeChatImageUrl = (raw: string): string => {
+    let s = raw.trim();
+    // .../image/upload/v123/https:/res.cloudinary.com/cloud/chat/file.png -> .../image/upload/v123/chat/file.png
+    const junkInPath =
+        /^(https:\/\/res\.cloudinary\.com\/[^/]+\/)image\/upload\/(v\d+\/)?https:\/+res\.cloudinary\.com\/[^/]+\/(.+)$/.exec(
+            s
+        );
+    if (junkInPath) {
+        s = `${junkInPath[1]}image/upload/${junkInPath[2] || ''}${junkInPath[3]}`;
+    }
+    const dup = /^https?:\/\/[^/]+\/https:\/+(.+)$/.exec(s);
+    if (dup) {
+        s = `https://${dup[1].replace(/^\/+/, '')}`;
+    }
+    const dupFull = /^https?:\/\/[^/]+\/(https:\/\/res\.cloudinary\.com\/.+)$/.exec(s);
+    if (dupFull) {
+        s = dupFull[1];
+    }
+    if (s.startsWith('https:/') && !s.startsWith('https://')) {
+        s = `https://${s.slice('https:/'.length).replace(/^\/+/, '')}`;
+    }
+    if (s.startsWith('http:/') && !s.startsWith('http://')) {
+        s = `http://${s.slice('http:/'.length).replace(/^\/+/, '')}`;
+    }
+    return s;
+};
 
 // Helper function để lấy full URL
 const getFullImageUrl = (path: string | null | undefined) => {
     if (!path) return '';
-    if (path.startsWith('http')) return path;
+    const normalized = normalizeChatImageUrl(String(path));
+    if (normalized.startsWith('http')) return normalized;
     // Prepend /uploads/ if path doesn't have it (for media files from backend)
-    const normalizedPath = path.startsWith('/uploads/') ? path : `/uploads/${path}`;
+    const normalizedPath = normalized.startsWith('/uploads/')
+        ? normalized
+        : `/uploads/${normalized.replace(/^\/+/, '')}`;
     return `${API_URL}${normalizedPath}`;
 };
 
@@ -185,21 +220,46 @@ export default function ChatPage() {
 
     const handleSendMessage = async () => {
         if ((!messageText.trim() && !selectedFile) || !chat || !currentUser) return;
-        setSending(true);
-        try {
-            const formData = new FormData();
-            // Backend derives sender and chat from authenticated user and URL, only send expected keys
-            formData.append('message', messageText.trim());
-            if (selectedFile) formData.append('image', selectedFile);
 
-            const resp = await axiosAuth.post(`/chat/${chatId}/send-message/`, formData);
-            // WebSocket will deliver the message via onmessage handler
-            // No need for optimistic update, it causes duplicate key errors
+
+
+        setSending(true);
+        const sendToast = toast.loading('Đang gửi...');
+
+        try {
+            let imageUrl: string | null = null;
+
+            // 1. Upload ảnh lên Cloudinary nếu có
+            if (selectedFile) {
+                toast.loading('Đang tải ảnh lên...', { id: sendToast });
+                try {
+                    imageUrl = await uploadToCloudinary(selectedFile, 'chat');
+                } catch {
+                    throw new Error('Lỗi khi tải ảnh lên. Vui lòng thử lại.');
+                }
+            }
+
+            // 2. Chuẩn bị payload dạng JSON
+            toast.loading('Đang gửi tin nhắn...', { id: sendToast });
+            const payload = {
+                message: messageText.trim(),
+                image: imageUrl, // Gửi URL ảnh hoặc null
+            };
+
+            // 3. Gửi đến backend
+            await axiosAuth.post(`/chat/${chatId}/send-message/`, payload);
+
+            // Xóa input sau khi gửi thành công (lắng nghe qua WebSocket)
             setMessageText('');
             removeImagePreview();
+
+            toast.dismiss(sendToast); // Ẩn toast loading sau khi xong
+            // Không cần toast success vì tin nhắn sẽ tự xuất hiện qua WS
+
         } catch (error) {
-            toast.error('Gửi tin nhắn thất bại');
-            console.error(error);
+            const errorMessage = (error as Error)?.message || 'Gửi tin nhắn thất bại. Vui lòng thử lại.';
+            toast.error(errorMessage, { id: sendToast });
+            console.error('Send message error:', error);
         } finally {
             setSending(false);
         }
@@ -250,7 +310,6 @@ export default function ChatPage() {
 
     if (!chat) return null;
 
-    // @ts-ignore: Giả sử Chat type có trường reference_image
     const hasReferenceImage = !!chat.reference_image;
 
     return (
@@ -271,8 +330,9 @@ export default function ChatPage() {
                                 </svg>
                             </Link>
                             <div>
+                                {/* SỬA CHỖ NÀY: Hiển thị tên Artisan thay vì chat.title */}
                                 <h1 className="text-xl font-bold flex flex-wrap items-center gap-2 text-[#0f172a]">
-                                    {chat.title}
+                                    {artisan?.name || 'Nghệ nhân'} 
                                     <span
                                         className="text-xs font-normal px-2 py-0.5 bg-gray-100 rounded-full text-gray-500 border border-gray-200">
                                         ID: {chatId}
@@ -284,6 +344,10 @@ export default function ChatPage() {
                                     <span className="text-sm font-medium text-gray-600">
                                         {isChatClosed ? 'Đã đóng' : 'Đang hoạt động'}
                                     </span>
+                                    {/* SỬA CHỖ NÀY: Hiển thị tiêu đề chat ở dạng sub-title cho rõ ràng */}
+                                    <span className="text-sm text-gray-400 ml-2 hidden sm:inline">
+                                        | {chat.title}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -293,7 +357,6 @@ export default function ChatPage() {
                         <div className="flex flex-col md:flex-row gap-6">
 
                             {/* --- CỘT 1: ẢNH THAM KHẢO --- */}
-                            {/* FIX: Set độ rộng cố định (md:w-64) và bỏ md:h-full để tránh tràn */}
                             {hasReferenceImage && (
                                 <div className="md:w-64 flex-shrink-0">
                                     <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-1">
@@ -304,7 +367,6 @@ export default function ChatPage() {
                                         </svg>
                                         Ảnh tham khảo:
                                     </h3>
-                                    {/* FIX: Dùng aspect-video hoặc set height cụ thể (h-40 md:h-44) */}
                                     <div
                                         className="relative w-full h-40 md:h-44 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm group">
                                         {/* @ts-ignore */}
@@ -374,6 +436,7 @@ export default function ChatPage() {
 
                             // Logic xử lý riêng cho ORDER_PROPOSAL
                             if (message.type === 'ORDER_PROPOSAL') {
+                                // ... (Giữ nguyên đoạn code render Proposal) ...
                                 let proposalData = null;
                                 try {
                                     proposalData = JSON.parse(message.content);
@@ -384,17 +447,27 @@ export default function ChatPage() {
                                 return (
                                     <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in zoom-in-95 duration-200 mb-4`}>
                                         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[85%] md:max-w-[60%]`}>
-                                            <div className="bg-white border-2 border-yellow-400 rounded-xl overflow-hidden shadow-md">
+                                            {/* Thêm Avatar Nghệ nhân gửi Proposal */}
+                                            {!isMe && (
+                                                <div className="flex items-end gap-2 mb-1">
+                                                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-slate-100 text-slate-700 border border-slate-200">
+                                                        {artisan?.name?.charAt(0) || 'A'}
+                                                    </div>
+                                                    <span className="text-[10px] text-gray-500">{artisan?.name}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="bg-white border-2 border-yellow-400 rounded-xl overflow-hidden shadow-md w-full">
                                                 {/* Header của thẻ đề xuất */}
                                                 <div className="bg-yellow-50 px-4 py-2 border-b border-yellow-200 flex items-center justify-between">
-                        <span className="text-xs font-bold text-yellow-800 uppercase tracking-wider flex items-center gap-1">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none"
-                                  viewBox="0 0 24 24" stroke="currentColor">
-                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                       d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                             </svg>
-                             Đề xuất đơn hàng
-                        </span>
+                                                    <span className="text-xs font-bold text-yellow-800 uppercase tracking-wider flex items-center gap-1">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none"
+                                                            viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                                                        </svg>
+                                                        Đề xuất đơn hàng
+                                                    </span>
                                                 </div>
 
                                                 {/* Nội dung đơn hàng */}
@@ -427,7 +500,6 @@ export default function ChatPage() {
                                                         </div>
                                                     </div>
 
-                                                    {/* --- SỬA ĐỔI TẠI ĐÂY: Chỉ hiện nút khi chat chưa đóng --- */}
                                                     {!isChatClosed && (
                                                         <div className="mt-4 pt-3 border-t border-gray-100">
                                                             <Button
@@ -439,22 +511,19 @@ export default function ChatPage() {
                                                         </div>
                                                     )}
 
-                                                    {/* (Optional) Có thể hiện thông báo thay thế nếu muốn */}
                                                     {isChatClosed && (
                                                         <div className="mt-4 pt-3 border-t border-gray-100 text-center text-xs text-gray-500 italic">
                                                             Đơn hàng đã được xử lý hoặc hủy bỏ
                                                         </div>
                                                     )}
-                                                    {/* -------------------------------------------------------- */}
-
                                                 </div>
                                             </div>
 
                                             <span className="text-[10px] text-gray-400 mt-1 px-1">
-                    {new Date(message.created_at).toLocaleTimeString('vi-VN', {
-                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                    })}
-                </span>
+                                                {new Date(message.created_at).toLocaleTimeString('vi-VN', {
+                                                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                })}
+                                            </span>
                                         </div>
                                     </div>
                                 );
@@ -464,9 +533,19 @@ export default function ChatPage() {
                             return (
                                 <div key={message.id}
                                      className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in zoom-in-95 duration-200`}>
-                                    {/* ... (Giữ nguyên code hiển thị tin nhắn Text/Image cũ của bạn ở đây) ... */}
                                     <div
                                         className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
+                                        
+                                        {/* SỬA CHỖ NÀY: Hiển thị Avatar Artisan nhỏ ở trên tin nhắn */}
+                                        {!isMe && (
+                                            <div className="flex items-end gap-2 mb-1">
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-slate-100 text-slate-700 border border-slate-200">
+                                                    {artisan?.name?.charAt(0) || 'A'}
+                                                </div>
+                                                <span className="text-[10px] text-gray-500">{artisan?.name}</span>
+                                            </div>
+                                        )}
+
                                         <div
                                             className={`rounded-2xl px-4 py-2 shadow-sm ${isMe ? 'bg-[#0f172a] text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none'}`}>
                                             {message.is_image ? (
@@ -481,14 +560,14 @@ export default function ChatPage() {
                                             )}
                                         </div>
                                         <span className="text-[10px] text-gray-400 mt-1 px-1">
-                    {new Date(message.created_at).toLocaleTimeString('vi-VN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    })}
-                </span>
+                                            {new Date(message.created_at).toLocaleTimeString('vi-VN', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </span>
                                     </div>
                                 </div>
                             );
@@ -498,7 +577,7 @@ export default function ChatPage() {
                     <div ref={messagesEndRef}/>
                 </div>
 
-                {/* Input Area */}
+                {/* Input Area (Giữ nguyên) */}
                 <div className="border-t border-gray-200 pt-4 bg-white flex-shrink-0">
                     {isChatClosed ? (
                         <div

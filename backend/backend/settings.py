@@ -13,8 +13,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
+import pymysql
 from dotenv import load_dotenv
 load_dotenv()
+pymysql.install_as_MySQLdb()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -40,7 +42,10 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    # Phải đứng trước staticfiles theo tài liệu django-cloudinary-storage
+    'cloudinary_storage',
     'django.contrib.staticfiles',
+    'cloudinary',
     'rest_framework',
     'rest_framework_simplejwt',
     'users',
@@ -103,7 +108,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'handmade',
         'USER': 'root',
-        'PASSWORD': '',
+        'PASSWORD': '123456',
         'HOST': '127.0.0.1',
         'PORT': '3306',
         'OPTIONS': {
@@ -153,9 +158,39 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Media files (Uploads)
-MEDIA_URL = '/uploads/'
-MEDIA_ROOT = BASE_DIR / 'uploads'
+# Media files — Cloudinary (upload chat, ảnh sản phẩm qua default_storage, …)
+# Thêm vào .env: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET', ''),
+}
+
+_USE_CLOUDINARY_MEDIA = all(CLOUDINARY_STORAGE.values())
+
+if _USE_CLOUDINARY_MEDIA:
+    STORAGES = {
+        'default': {
+            'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+    # Prefix CDN; storage.url() vẫn trả URL đầy đủ cho file đã lưu
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'uploads'  # không dùng cho default storage nhưng giữ cho tương thích
+else:
+    STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+    MEDIA_URL = '/uploads/'
+    MEDIA_ROOT = BASE_DIR / 'uploads'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

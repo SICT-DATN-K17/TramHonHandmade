@@ -6,9 +6,17 @@ import Image from "next/image";
 import useMyChats from "@/hooks/useMyChats";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-// Thêm PlusCircle vào import
 import { Loader2, MessageSquare, Calendar, ChevronRight, PlusCircle } from "lucide-react";
 import { Header, Footer } from "@/components/common";
+
+// --- HELPER XỬ LÝ ẢNH THUMBNAIL ---
+const getThumbnailUrl = (productImage?: string | null, referenceImage?: string | null) => {
+    // Ưu tiên ảnh sản phẩm (nếu đã chốt đơn), không có thì dùng ảnh tham khảo (lúc mới tạo yêu cầu)
+    const path = productImage || referenceImage;
+    if (!path) return '/tramhon-logo.png'; // Fallback nếu không có cả 2
+    if (path.startsWith('//')) return `https:${path}`;
+    return path;
+};
 
 export default function MyChatsPage() {
     const { chatDataDetails, isLoading, error } = useMyChats();
@@ -117,13 +125,15 @@ export default function MyChatsPage() {
 
                                 <div className="p-6">
                                     <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                                        {/* Ảnh sản phẩm */}
+                                        
+                                        {/* --- ẢNH SẢN PHẨM / THAM KHẢO --- */}
                                         <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl border bg-gray-50" style={{ borderColor: '#E8D5B5' }}>
                                             <Image
-                                                src={chatDetail.product?.image ? (chatDetail.product?.image.startsWith('//') ? `https:${chatDetail.product?.image}` : chatDetail.product?.image) : '/tramhon-logo.png'}
-                                                alt="Product"
+                                                src={getThumbnailUrl(chatDetail.product?.image, chatDetail.chat?.reference_image)}
+                                                alt="Thumbnail"
                                                 fill
                                                 className="object-cover"
+                                                sizes="96px"
                                             />
                                         </div>
 

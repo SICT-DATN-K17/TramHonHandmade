@@ -1,8 +1,37 @@
+import re
+
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from users.models import CustomUser
 from products.models import Product
 from .models import Chat, ChatMessage
+
+
+def normalize_chat_media_url(stored):
+    if stored is None or stored == '':
+        return stored
+    s = str(stored).strip()
+    if s.startswith('https:/') and not s.startswith('https://'):
+        s = 'https://' + s[7:].lstrip('/')
+    elif s.startswith('http:/') and not s.startswith('http://'):
+        s = 'http://' + s[6:].lstrip('/')
+    # .../image/upload/(v.../)?https:/res.cloudinary.com/{cloud}/chat/...  -> bỏ nhúng URL, giữ chat/...
+    m_fix = re.match(
+        r'^(https://res\.cloudinary\.com/[^/]+/)image/upload/(v\d+/)?https:/+res\.cloudinary\.com/[^/]+/(.+)$',
+        s,
+    )
+    if m_fix:
+        prefix, version, tail = m_fix.group(1), m_fix.group(2) or '', m_fix.group(3)
+        return f'{prefix}image/upload/{version}{tail}'
+    # .../https:/res.cloudinary.com/...  -> chỉ giữ phần URL trong
+    m = re.search(r'https?://[^/]+/https:/+(.+)', s)
+    if m:
+        return 'https://' + m.group(1).lstrip('/')
+    m2 = re.search(r'https?://[^/]+/(https://res\.cloudinary\.com/.+)', s)
+    if m2:
+        return m2.group(1)
+    return s
 
 
 class ChatInitiateRequestSerializer(serializers.Serializer):
@@ -11,7 +40,7 @@ class ChatInitiateRequestSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     budget = serializers.DecimalField(max_digits=20, decimal_places=2, required=False, allow_null=True)
-    reference_image = serializers.ImageField(required=False, allow_null=True, use_url=True)
+    reference_image = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate_artisan_id(self, value):
         """Kiểm tra nghệ nhân có tồn tại và có đúng vai trò không."""
@@ -39,7 +68,7 @@ class ChatInitiateRequestSerializer(serializers.Serializer):
 
 class SendMessageSerializer(serializers.Serializer):
     message = serializers.CharField(required=False, allow_blank=True)
-    image = serializers.ImageField(required=False, allow_null=True)
+    image = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     type = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, data):
@@ -64,10 +93,27 @@ class ChatMessageResponseSerializer(serializers.ModelSerializer):
     sender_id = serializers.ReadOnlyField(source='sender.id')
     created_at = serializers.DateTimeField(source='sent_at', read_only=True)
     image = serializers.BooleanField(source='is_image', read_only=True)
+    message = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatMessage
         fields = ['id', 'sender_id', 'sender_type', 'image', 'type', 'message', 'created_at']
+
+    def get_message(self, obj):
+        """Tin IMAGE: trả URL đầy đủ (Cloudinary hoặc /uploads/ local)."""
+        text = obj.message
+        if not text:
+            return text
+        if obj.is_image:
+            s = normalize_chat_media_url(str(text))
+            # Đã là URL tuyệt đối (kể cả https:/ đã được chuẩn hóa ở trên)
+            if s.startswith('http'):
+                return s
+            try:
+                return normalize_chat_media_url(default_storage.url(s))
+            except Exception:
+                return s
+        return text
 
 
 class ChatListSerializer(serializers.ModelSerializer):
@@ -118,6 +164,7 @@ class ChatDetailSerializer(serializers.ModelSerializer):
     artisan = ChatUserSerializer(read_only=True)
     product = ChatProductSerializer(read_only=True, allow_null=True)
     messages = ChatMessageResponseSerializer(many=True, read_only=True)
+    reference_image = serializers.SerializerMethodField()
 
     class Meta:
         model = Chat
@@ -125,6 +172,18 @@ class ChatDetailSerializer(serializers.ModelSerializer):
             'id', 'customer', 'artisan', 'product', 'status', 'title',
             'description', 'budget', 'reference_image', 'created_at', 'messages'
         ]
+
+    def get_reference_image(self, obj):
+        path = obj.reference_image
+        if not path:
+            return None
+        s = normalize_chat_media_url(str(path))
+        if s.startswith('http'):
+            return s
+        try:
+            return normalize_chat_media_url(default_storage.url(s))
+        except Exception:
+            return s
 
 
 class ChatInitiateResponseSerializer(serializers.Serializer):

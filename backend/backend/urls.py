@@ -28,6 +28,6 @@ urlpatterns = [
     path('api/', include('core.urls')),
 ]
 
-# Serve media files in development
-if settings.DEBUG:
+# Chỉ serve media local khi MEDIA_URL là path tương đối (không dùng với Cloudinary HTTPS)
+if settings.DEBUG and str(getattr(settings, 'MEDIA_URL', '') or '').startswith('/'):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

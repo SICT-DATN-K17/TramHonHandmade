@@ -29,24 +29,6 @@ from .serializers import (
 from .permissions import IsParticipantOrAdmin
 
 
-def _save_chat_image(file):
-    """
-    Lưu file ảnh được tải lên vào thư mục chat và trả về đường dẫn tương đối.
-    """
-    if not file:
-        return None
-    
-    upload_dir = 'chat/'
-    
-    # Tạo tên file duy nhất để tránh ghi đè
-    file_extension = os.path.splitext(file.name)[1]
-    file_name = f"{uuid.uuid4()}{file_extension}"
-    
-    # Lưu file và lấy đường dẫn tương đối
-    saved_path = default_storage.save(os.path.join(upload_dir, file_name), file)
-    
-    return saved_path
-
 
 class ChatViewSet(ModelViewSet):
     """
@@ -170,10 +152,6 @@ class ChatViewSet(ModelViewSet):
         product_id = data.get('product_id')
         product = Product.objects.get(id=product_id) if product_id else None
 
-        reference_image_path = None
-        if 'reference_image' in data and data['reference_image']:
-            reference_image_path = _save_chat_image(data['reference_image'])
-
         chat = Chat.objects.create(
             customer=customer,
             artisan=artisan,
@@ -181,7 +159,7 @@ class ChatViewSet(ModelViewSet):
             title=data['title'],
             description=data.get('description'),
             budget=data.get('budget'),
-            reference_image=reference_image_path
+            reference_image=data.get('reference_image')
         )
 
         response_serializer = ChatInitiateResponseSerializer(chat)
@@ -197,7 +175,7 @@ class ChatViewSet(ModelViewSet):
         serializer = self.get_serializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], url_path='send-message', parser_classes=[parsers.MultiPartParser, parsers.FormParser]) # Hoàn nguyên parser_classes
+    @action(detail=True, methods=['post'], url_path='send-message')
     def send_message(self, request, pk=None):
         """
         Gửi một tin nhắn mới trong một cuộc trò chuyện cụ thể.
@@ -209,17 +187,17 @@ class ChatViewSet(ModelViewSet):
         data = serializer.validated_data
 
         message_content = data.get('message')
-        image_file = data.get('image')
+        image_url = data.get('image')
 
         is_image = False
         # Allow client to optionally provide a 'type' (e.g., ORDER_PROPOSAL). Default to TEXT.
         message_type = data.get('type') or 'TEXT'
 
-        if image_file:
+        if image_url:
             # If client did not explicitly set a type, mark as IMAGE
             if not data.get('type'):
                 message_type = 'IMAGE'
-            message_content = _save_chat_image(image_file)
+            message_content = image_url
             is_image = True
         
         sender_type = 'CUSTOMER' if user == chat.customer else 'ARTISAN'

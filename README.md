@@ -22,7 +22,6 @@ Trạm Hồn là một hệ thống thương mại điện tử đa nhà cung c�
 * **Backend API (BFF Gateway):** Django 5.x, Django REST Framework, Django Channels (WebSockets).
 * **Core ERP (Back-office):** Odoo 16, XML-RPC.
 * **Database & Caching:** PostgreSQL 15 (Odoo), MySQL (Django), Redis (Chat).
-* **DevOps / Deployment:** Docker, Docker Compose.
 
 ## 📂 Cấu trúc dự án (Monorepo)
 
@@ -33,7 +32,6 @@ TramHonHandmade/
 ├── odoo/               # Cấu hình Docker cho Odoo 16 & Custom Addons
 │   ├── custom_addons/  # Các module tùy chỉnh mở rộng nghiệp vụ Odoo
 │   └── docker-compose.yml
-├── database/           # Chứa các file backup .sql (nếu có)
 └── README.md
 
 ⚙️ Hướng dẫn cài đặt (Local Development)

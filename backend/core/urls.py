@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from products.views import *
 from orders.views import OrderViewSet
 from chat.views import *
+from .views import SignatureAPIView
 
 router= DefaultRouter()
 router.register(r'products', ProductViewset, basename='product')
@@ -13,4 +14,5 @@ router.register(r'chat', ChatViewSet, basename='chat')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('sign-cloudinary-upload/', SignatureAPIView.as_view(), name='sign-cloudinary-upload'),
 ]

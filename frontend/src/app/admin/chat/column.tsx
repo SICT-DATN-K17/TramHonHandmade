@@ -39,19 +39,25 @@ export const columns: ColumnDef<any>[] = [
         header: ({ column }) => (
             <div style={{ color: THEME.textSecondary }}>Ảnh</div>
         ),
-        cell: ({ row }) => (
-            <div
-                className="h-10 w-10 relative rounded overflow-hidden border"
-                style={{ borderColor: THEME.border }}
-            >
-                <Image
-                    src={getProductImageUrl(row.original.product?.image)}
-                    alt="Product"
-                    fill
-                    className="object-cover"
-                />
-            </div>
-        ),
+        cell: ({ row }) => {
+            // Lấy ảnh sản phẩm, nếu chưa có thì lấy ảnh tham khảo của chat
+            const imagePath = row.original.product?.image || row.original.chat?.reference_image;
+
+            return (
+                <div
+                    className="h-10 w-10 relative rounded overflow-hidden border bg-gray-50"
+                    style={{ borderColor: THEME.border }}
+                >
+                    <Image
+                        src={getProductImageUrl(imagePath)}
+                        alt="Thumbnail"
+                        fill
+                        className="object-cover"
+                        sizes="40px" // Tối ưu thêm sizes cho ảnh nhỏ
+                    />
+                </div>
+            );
+        },
     },
     {
         id: "title",
