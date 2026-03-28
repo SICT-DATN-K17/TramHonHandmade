@@ -30,14 +30,14 @@ const labelStyles: React.CSSProperties = {
     marginBottom: '0.5rem'
 };
 
-interface ProductEditFormProps {
+interface ProductFormProps {
     initialData: Product | null;
 }
 
-export const ProductEditForm: React.FC<ProductEditFormProps> = ({ initialData }) => {
+export const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
     const router = useRouter();
 
-    // 1. Khởi tạo hook axiosAuth
+    // ADD: Khởi tạo hook axiosAuth
     const axiosAuth = useAxiosAuth();
 
     const [name, setName] = useState(initialData?.name || '');
@@ -51,11 +51,10 @@ export const ProductEditForm: React.FC<ProductEditFormProps> = ({ initialData })
     const [loading, setLoading] = useState(false);
     const [categories, setCategories] = useState<Category[]>([]);
 
-    // 2. Fetch Categories dùng axiosAuth
     useEffect(() => {
         const getCategories = async () => {
             try {
-                // Sử dụng axiosAuth.get
+                // EDIT: Dùng axiosAuth.get
                 const response = await axiosAuth.get<Category[]>('/category');
                 const cats = response.data; // Lấy dữ liệu từ .data
 
@@ -87,17 +86,16 @@ export const ProductEditForm: React.FC<ProductEditFormProps> = ({ initialData })
 
         try {
             if (initialData) {
-                // 3. Update Product dùng axiosAuth.put
-                // Không cần JSON.stringify, axios tự xử lý object
-                await axiosAuth.put(`/products/${initialData.id}`, productData);
+                // EDIT: Dùng axiosAuth.put (không cần JSON.stringify)
+                await axiosAuth.put(`/products/${initialData.id}/`, productData);
             } else {
-                // This form is for editing only
+                // EDIT: Dùng axiosAuth.post (không cần JSON.stringify)
+                await axiosAuth.post('/products/', productData);
             }
 
-            // Trigger refresh event for products list (in case user navigates back)
+            // Trigger refresh event for products list
             window.dispatchEvent(new Event('products-refresh'));
-
-            router.push(`/admin/products/${initialData?.id}`);
+            router.push('/artisan/products');
             router.refresh();
         } catch (error) {
             console.error("Failed to save product", error);
@@ -106,35 +104,29 @@ export const ProductEditForm: React.FC<ProductEditFormProps> = ({ initialData })
         }
     };
 
-    if (!initialData) {
-        return <div>Không có dữ liệu sản phẩm.</div>
-    }
+    const action = initialData ? 'Lưu thay đổi' : 'Tạo';
 
     return (
         <form onSubmit={handleSubmit} className="space-y-8 w-full">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
-                <div>
+                <div className="space-y-2">
                     <label htmlFor="name" style={labelStyles}>Tên sản phẩm</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {initialData.name}</p>
-                    <input id="name" value={name} onChange={(e) => setName(e.target.value)} disabled={loading} placeholder="Tên sản phẩm mới" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
+                    <input id="name" value={name} onChange={(e) => setName(e.target.value)} disabled={loading} placeholder="Tên sản phẩm" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                     <label htmlFor="price" style={labelStyles}>Giá</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {initialData.price}</p>
-                    <input id="price" value={price} onChange={(e) => setPrice(Number(e.target.value))} type="number" disabled={loading} placeholder="Giá mới" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
+                    <input id="price" value={price} onChange={(e) => setPrice(Number(e.target.value))} type="number" disabled={loading} placeholder="9.99" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                     <label htmlFor="stock" style={labelStyles}>Số lượng tồn kho</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {initialData.stock_quantity}</p>
-                    <input id="stock" value={stock_quantity} onChange={(e) => setStockQuantity(Number(e.target.value))} type="number" disabled={loading} placeholder="Số lượng mới" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
+                    <input id="stock" value={stock_quantity} onChange={(e) => setStockQuantity(Number(e.target.value))} type="number" disabled={loading} placeholder="100" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                     <label htmlFor="category" style={labelStyles}>Danh mục</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {categories.find(c => c.id === initialData.category_id)?.name}</p>
                     <select
                         id="category"
                         disabled={loading}
@@ -151,42 +143,28 @@ export const ProductEditForm: React.FC<ProductEditFormProps> = ({ initialData })
                     </select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                     <label htmlFor="status" style={labelStyles}>Trạng thái</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {initialData.status}</p>
                     <select disabled={loading} onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'HIDDEN')} value={status} style={selectStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none">
                         <option value="ACTIVE">Hoạt động</option>
                         <option value="HIDDEN">Ẩn</option>
                     </select>
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="space-y-2 md:col-span-3">
                     <label htmlFor="description" style={labelStyles}>Mô tả</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {initialData.description}</p>
-                    <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} placeholder="Mô tả mới" style={{...inputStyles, borderRadius: '1.5rem', minHeight: '120px'}} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
+                    <input id="description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} placeholder="Mô tả sản phẩm" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="space-y-2 md:col-span-3">
                     <label htmlFor="image" style={labelStyles}>Hình ảnh</label>
-                    <p className="text-sm text-gray-500 mb-2">Hiện tại: {initialData.image}</p>
-                    <input id="image" value={image} onChange={(e) => setImage(e.target.value)} disabled={loading} placeholder="Đường dẫn hình ảnh mới" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
+                    <input id="image" value={image} onChange={(e) => setImage(e.target.value)} disabled={loading} placeholder="Đường dẫn hình ảnh" style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none" />
                 </div>
             </div>
 
-            <div className="flex justify-end space-x-4">
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    disabled={loading}
-                    className="px-6 py-3 text-sm font-medium rounded-full shadow-md transition-all transform hover:scale-105"
-                    style={{ backgroundColor: '#F7F1E8', color: '#3F2E23', border: '1px solid #D96C39' }}
-                >
-                    Hủy
-                </button>
-                <button disabled={loading} className="px-6 py-3 text-sm font-medium rounded-full shadow-md text-white transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: '#D96C39' }} type="submit">
-                    Lưu thay đổi
-                </button>
-            </div>
+            <button disabled={loading} className="ml-auto block px-6 py-3 text-sm font-medium rounded-full shadow-md text-white transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: '#D96C39' }} type="submit">
+                {action}
+            </button>
         </form>
     );
 };

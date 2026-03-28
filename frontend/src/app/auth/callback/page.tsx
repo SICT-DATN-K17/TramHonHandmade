@@ -38,9 +38,9 @@ function CallbackContent() {
         if (status === "authenticated" && session) {
             const user = session.user;
             if (user) {
-                const isAdmin = user.role === "ADMIN";
-                if (isAdmin) {
-                    router.push("/admin");
+                const isArtisan = user.role === "ARTISAN";
+                if (isArtisan) {
+                    router.push("/artisan");
                 } else {
                     router.push("/");
                 }

@@ -14,7 +14,7 @@ class OrderItemRequestSerializer(serializers.Serializer):
 class OrderRequestSerializer(serializers.Serializer):
     # customer_id sẽ được lấy từ token hoặc mặc định trong view
     customer_id = serializers.IntegerField(required=False, allow_null=True)
-    artisan_id = serializers.IntegerField(default=1) # Mặc định artisan_id là 1 như BE cũ
+    artisan_id = serializers.IntegerField(required=True, error_messages={'required': 'Thiếu ID của Nghệ nhân (artisan_id)'})
     chat_id = serializers.IntegerField(required=False, allow_null=True)
 
     phone_number = serializers.RegexField(
@@ -51,8 +51,8 @@ class OrderDetailSerializer(ModelSerializer):
     customer_phone = serializers.ReadOnlyField(source='phone_number')
     shipping_address = serializers.ReadOnlyField(source='address')
     order_date = serializers.DateTimeField(source='created_at')
-    shipping_fee = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00) # Mặc định 0 như BE cũ
-    final_total = serializers.ReadOnlyField(source='total_price') # Map totalPrice của BE cũ sang finalTotal
+    shipping_fee = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    final_total = serializers.ReadOnlyField(source='total_price') 
     items = OrderDetailItemSerializer(many=True, read_only=True)
 
     class Meta:
@@ -81,7 +81,7 @@ class AdminOrderListSerializer(ModelSerializer):
     phone = serializers.ReadOnlyField(source='phone_number')
     created_at = serializers.DateTimeField()
     subtotal = serializers.SerializerMethodField()
-    shipping_fee = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00) # Mặc định 0 như BE cũ
+    shipping_fee = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total = serializers.ReadOnlyField(source='total_price')
     shipping_address = serializers.ReadOnlyField(source='address')
     items = AdminOrderItemListSerializer(many=True, read_only=True)

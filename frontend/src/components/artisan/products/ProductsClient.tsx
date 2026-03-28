@@ -121,7 +121,7 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
     }, [selectedCategoryId, categories, filteredProducts.length]);
 
     const handleRowClick = (product: Product) => {
-        router.push(`/admin/products/${product.id}`);
+        router.push(`/artisan/products/${product.id}`);
     };
 
     const confirmDeleteAction = (name: string, onConfirm: () => void) => {
@@ -227,7 +227,7 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                router.push(`/admin/products/${product.id}`);
+                                router.push(`/artisan/products/${product.id}`);
                             }}
                             className="p-2 rounded-full text-blue-500 hover:bg-blue-100 transition-colors"
                             title="Xem chi tiết & Chỉnh sửa"
@@ -256,7 +256,7 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
                     </p>
                 </div>
                 <button
-                    onClick={() => router.push(`/admin/products/new`)}
+                    onClick={() => router.push(`/artisan/products/new`)}
                     className="px-6 py-3 text-sm font-medium rounded-full shadow-md text-white transition-all transform hover:scale-105"
                     style={{ backgroundColor: '#D96C39' }}
                 >

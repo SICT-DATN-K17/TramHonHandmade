@@ -76,7 +76,7 @@ export interface RawOrderDetail {
     items: RawOrderDetailItem[];
 }
 
-export interface RawAdminOrderListItem {
+export interface RawArtisanOrderListItem {
     productId: number;
     productName: string;
     quantity: number;
@@ -84,7 +84,7 @@ export interface RawAdminOrderListItem {
     image: string | null;
 }
 
-export interface RawAdminOrderList {
+export interface RawArtisanOrderList {
     id: number;
     orderNumber: string;
     customerName: string;
@@ -97,7 +97,7 @@ export interface RawAdminOrderList {
     paymentMethod: string;
     shippingAddress: string;
     note: string | null;
-    items: RawAdminOrderListItem[];
+    items: RawArtisanOrderListItem[];
 }
 
 

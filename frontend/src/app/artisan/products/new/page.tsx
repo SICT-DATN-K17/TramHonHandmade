@@ -98,7 +98,7 @@ const NewProductPage = () => {
             await axiosAuth.post('/products/', payload);
 
             toast.success('Tạo sản phẩm mới thành công!');
-            router.push('/admin/products');
+            router.push('/artisan/products');
             // router.refresh() được dùng để yêu cầu Next.js làm mới lại dữ liệu ở route hiện tại.
             // Khi được gọi sau router.push(), nó sẽ đảm bảo rằng khi trang danh sách sản phẩm
             // được tải, nó sẽ lấy dữ liệu mới nhất từ server thay vì từ cache.

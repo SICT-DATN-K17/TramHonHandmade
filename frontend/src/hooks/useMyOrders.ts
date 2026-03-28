@@ -28,7 +28,6 @@ const useMyOrders = () => {
         fetchOrders();
     }, [fetchOrders]);
 
-    // Đổi tên export thành cancelOrder cho gọn và khớp với UI
     const cancelOrder = async (orderId: number) => {
         try {
             await axiosAuth.put(`/orders/${orderId}/cancel/`);

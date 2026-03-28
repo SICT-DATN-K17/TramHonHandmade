@@ -22,7 +22,7 @@ import Image from 'next/image';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import { mapFrontendToBackendStatus, mapBackendToFrontendStatus } from '@/utils/orderStatusMapper';
 import toast, { Toaster } from 'react-hot-toast';
-import type { RawAdminOrderList } from '@/types/apiTypes';
+import type { RawArtisanOrderList } from '@/types/apiTypes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -96,7 +96,7 @@ const paymentLabels: Record<PaymentMethod, string> = {
 const formatCurrency = (value: number) => `₫${value.toLocaleString('vi-VN')}`;
 
 // Map dữ liệu từ Backend về Frontend
-const mapAdminOrderToStoredOrder = (rawOrder: RawAdminOrderList): StoredOrder => {
+const mapArtisanOrderToStoredOrder = (rawOrder: RawArtisanOrderList): StoredOrder => {
     const mapBackendPaymentMethodToFrontend = (backendMethod: string): PaymentMethod => {
         switch (backendMethod) {
             case 'COD':
@@ -145,7 +145,7 @@ const mapAdminOrderToStoredOrder = (rawOrder: RawAdminOrderList): StoredOrder =>
 
 // --- MAIN COMPONENT ---
 
-const AdminOrdersPage = () => {
+const ArtisanOrdersPage = () => {
     const [orders, setOrders] = useState<StoredOrder[]>([]);
     const [selectedOrder, setSelectedOrder] = useState<StoredOrder | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -158,10 +158,10 @@ const AdminOrdersPage = () => {
         try {
             setIsLoading(true);
             // Sử dụng axiosAuth.get thay vì fetchApi
-            const response = await axiosAuth.get<RawAdminOrderList[]>('/orders/admin/all');
+            const response = await axiosAuth.get<RawArtisanOrderList[]>('/orders/artisan/all');
 
             // Axios trả về dữ liệu trong property .data
-            const mappedOrders = response.data.map(mapAdminOrderToStoredOrder);
+            const mappedOrders = response.data.map(mapArtisanOrderToStoredOrder);
             setOrders(mappedOrders);
         } catch (error) {
             console.error('Failed to fetch orders:', error);
@@ -463,4 +463,4 @@ const AdminOrdersPage = () => {
     );
 };
 
-export default AdminOrdersPage;
+export default ArtisanOrdersPage;

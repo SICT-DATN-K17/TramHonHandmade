@@ -9,7 +9,7 @@ export default withAuth(
     const token = request.nextauth.token;
 
     const isAuth = !!token;
-    const isAdmin = isAuth && token?.role === 'ADMIN';
+    const isArtisan = isAuth && token?.role === 'ARTISAN';
 
     // Helper function to create a redirect response
     const redirect = (url: string) => {
@@ -21,25 +21,25 @@ export default withAuth(
       return NextResponse.redirect(newUrl);
     };
 
-    // --- Admin-specific Logic ---
-    if (isAdmin) {
-      // Admins can only access their dashboard pages.
-      if (pathname.startsWith('/admin')) {
+    // --- Artisan-specific Logic ---
+    if (isArtisan) {
+      // Artisans can only access their dashboard pages.
+      if (pathname.startsWith('/artisan')) {
         return NextResponse.next();
       }
-      // For any other client-only page (cart, checkout, account, /chat etc.), redirect them to the admin dashboard.
-      return redirect('/admin');
+      // For any other client-only page (cart, checkout, account, /chat etc.), redirect them to the artisan dashboard.
+      return redirect('/artisan');
     }
 
     // --- Guest & Regular User Logic ---
 
-    // Rule 1: Protect Admin pages from non-admins.
-    if (pathname.startsWith('/admin')) {
-      // If a non-admin (authenticated or not) tries to access an admin page, send them to login.
+    // Rule 1: Protect artisan pages from non-artisans.
+    if (pathname.startsWith('/artisan')) {
+      // If a non-artisan (authenticated or not) tries to access an artisan page, send them to login.
       return redirect('/login');
     }
 
-    // Rule 2: Protect user-specific pages that require login for non-admins.
+    // Rule 2: Protect user-specific pages that require login for non-artisans.
     const userProtectedPaths = [
       '/account',
       '/cart',
@@ -56,7 +56,7 @@ export default withAuth(
       }
     }
 
-    // Rule 3: Handle authenticated non-admins on auth pages.
+    // Rule 3: Handle authenticated non-artisans on auth pages.
     if (isAuth) {
       // If a logged-in user is on the login/signup page, redirect to the homepage.
       if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {

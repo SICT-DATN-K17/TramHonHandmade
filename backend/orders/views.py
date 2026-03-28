@@ -13,39 +13,50 @@ from .serializers import (
     OrderProgressResponseSerializer,
     OrderStatusUpdateResponseSerializer,
 )
-from .permissions import IsOwnerOrAdmin
+from .permissions import IsOwnerOrArtisan
 from .services import create_order_from_request
 
-
 class OrderViewSet(ModelViewSet):
+    # Khai báo gốc, sẽ bị filter ở get_queryset
     queryset = Order.objects.all().order_by('-created_at')
     permission_classes = [permissions.IsAuthenticated]
 
     def get_serializer_class(self):
         if self.action in ['create', 'create_legacy']:
             return OrderRequestSerializer
-        if self.action == 'retrieve':
-            return OrderDetailSerializer
-        if self.action == 'my_orders':
-            return OrderProgressResponseSerializer
-        if self.action in ['list', 'admin_all']:
+        if self.action in ['my_orders', 'retrieve']:
+            return OrderDetailSerializer # Dùng chung cho khách lấy 1 hoặc nhiều đơn
+        if self.action in ['list', 'artisan_all']:
             return AdminOrderListSerializer
-        # Default serializer for list/update/etc.
         return OrderDetailSerializer
 
     def get_permissions(self):
-        if self.action in ['create', 'create_legacy', 'my_orders']:
+        # Ai đăng nhập cũng được tạo đơn, lấy list đơn của mình
+        if self.action in ['create', 'create_legacy', 'my_orders', 'list', 'artisan_all']:
             return [permissions.IsAuthenticated()]
-        # Chỉ chủ sở hữu đơn hàng hoặc Admin mới có thể xem chi tiết hoặc hủy.
-        if self.action in ['retrieve', 'cancel']:
-            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
+        
+        # Xem chi tiết, cập nhật trạng thái, hủy đơn -> Phải qua cửa kiểm duyệt
+        if self.action in ['retrieve', 'cancel', 'update_status', 'update', 'partial_update']:
+            return [permissions.IsAuthenticated(), IsOwnerOrArtisan()]
+        
         return [permissions.IsAdminUser()]
 
     def get_queryset(self):
-        """Admins can see all orders. Regular users can only see their own orders."""
+        """
+        Logic cốt lõi để chia bài:
+        - Admin: Xem hết.
+        - Artisan: Xem đơn hàng gán cho mình.
+        - Khách hàng: Xem đơn hàng mình đặt.
+        """
         user = self.request.user
-        if user.is_staff:
+        
+        if getattr(user, 'is_system_admin', False):
             return super().get_queryset()
+            
+        if getattr(user, 'is_artisan', False):
+            return super().get_queryset().filter(artisan=user)
+            
+        # Mặc định là Khách hàng (Customer)
         return super().get_queryset().filter(customer=user)
 
     def create(self, request, *args, **kwargs):
@@ -53,6 +64,7 @@ class OrderViewSet(ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
+            # Gán thẳng artisan=1 tạm thời, nếu muốn Multi-vendor xịn thì frontend phải truyền artisan_id
             order = create_order_from_request(serializer.validated_data, request.user)
             response_serializer = OrderDetailSerializer(order, context={'request': request})
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -63,30 +75,33 @@ class OrderViewSet(ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_legacy(self, request, *args, **kwargs):
-        """
-        Endpoint tương thích với backend cũ để hỗ trợ POST /api/orders/create/
-        Hành động này sẽ gọi trực tiếp đến phương thức `create` tiêu chuẩn.
-        """
         return self.create(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], url_path='my-orders')
     def my_orders(self, request):
-        """Returns all orders for the currently authenticated user."""
+        """Trả về đơn hàng của người đang đăng nhập (Tự động rẽ nhánh dựa vào get_queryset)"""
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'], url_path='admin/all')
-    def admin_all(self, request):
-        """Returns all orders in the system. (Admin only)"""
-        queryset = Order.objects.all().order_by('-created_at')
+    @action(detail=False, methods=['get'], url_path='artisan/all')
+    def artisan_all(self, request):
+        """
+        Dành cho Dashboard của Artisan. 
+        Thực ra dùng chung get_queryset() là đã đủ bảo mật rồi.
+        """
+        # Nếu không phải Artisan hoặc Admin thì đá ra ngoài
+        if not getattr(request.user, 'is_artisan', False) and not getattr(request.user, 'is_system_admin', False):
+            return Response({"message": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+            
+        queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['put'], url_path='status')
     def update_status(self, request, pk=None):
-        """Updates the status of an order. (Admin only)"""
-        order = self.get_object()
+        """Cập nhật trạng thái đơn hàng (Chỉ Artisan của đơn đó hoặc Admin mới làm được)"""
+        order = self.get_object() # Đã tự động gọi hàm IsOwnerOrArtisan kiểm tra quyền
         new_status = request.query_params.get('status', '').upper()
 
         if not new_status or new_status not in [s[0] for s in Order.STATUS_CHOICES]:
@@ -94,12 +109,11 @@ class OrderViewSet(ModelViewSet):
 
         order.status = new_status
         order.save(update_fields=['status'])
-        response_data = {"id": order.id, "status": order.status, "message": "Cập nhật trạng thái đơn hàng thành công"}
-        return Response(response_data)
+        return Response({"id": order.id, "status": order.status, "message": "Cập nhật trạng thái thành công"})
 
     @action(detail=True, methods=['put'])
     def cancel(self, request, pk=None):
-        """Allows a user or admin to cancel an order."""
+        """Hủy đơn (Chủ đơn hoặc Artisan/Admin)"""
         order = self.get_object()
         if order.status not in ['PENDING', 'CONFIRMED']:
             return Response({"message": "Không thể hủy đơn hàng đang giao hoặc đã hoàn thành!"}, status=status.HTTP_400_BAD_REQUEST)

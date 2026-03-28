@@ -1,15 +1,25 @@
 from rest_framework.permissions import BasePermission
 
-
-class IsOwnerOrAdmin(BasePermission):
+class IsOwnerOrArtisan(BasePermission):
     """
-    Custom permission to only allow owners of an object or admins to interact with it.
+    Cho phép: 
+    - Khách hàng (Customer) xem đơn hàng của chính mình.
+    - Nghệ nhân (Artisan) xem đơn hàng do mình phụ trách.
+    - Admin hệ thống xem mọi thứ.
     """
     message = "Bạn không có quyền truy cập đơn hàng này."
 
     def has_object_permission(self, request, view, obj):
-        # Admin users can access any order
-        if request.user and request.user.is_staff:
+        # Admin hệ thống có toàn quyền
+        if getattr(request.user, 'is_system_admin', False):
             return True
-        # The owner of the order can access it
-        return obj.customer == request.user
+            
+        # Chủ đơn hàng (Customer) có quyền
+        if obj.customer == request.user:
+            return True
+            
+        # Nghệ nhân phụ trách đơn hàng này có quyền
+        if obj.artisan == request.user and getattr(request.user, 'is_artisan', False):
+            return True
+            
+        return False

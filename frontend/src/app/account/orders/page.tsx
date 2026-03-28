@@ -148,24 +148,28 @@ export default function MyOrdersPage() {
                                 {/* Body Order giữ nguyên */}
                                 <div className="p-6">
                                     <div className="space-y-4">
-                                        {order.items.map((item, index) => {
-                                            let imageUrl = item.imageUrl || '/tramhon-logo.png';
+                                        {order.items.map((item: any, index: number) => {
+                                            let imageUrl = item.productImage || item.imageUrl || '/tramhon-logo.png';
+                                            
                                             if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
                                             // Handle relative paths from backend
                                             if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
                                                 imageUrl = `http://127.0.0.1:8000/${imageUrl}`;
                                             }
+                                            
                                             return (
                                                 <div key={index} className="flex gap-4 items-center">
                                                     <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border bg-gray-50" style={{ borderColor: '#E8D5B5' }}>
-                                                        <Image src={imageUrl} alt={item.productName} fill className="object-cover" />
+                                                        <Image src={imageUrl} alt={item.productName || 'Product'} fill className="object-cover" />
                                                     </div>
                                                     <div className="flex flex-1 flex-col justify-center">
                                                         <h4 className="font-semibold text-base line-clamp-2" style={{ color: '#3F2E23' }}>{item.productName}</h4>
                                                         <p className="text-sm mt-1" style={{ color: '#6B4F3E' }}>Số lượng: <span className="font-medium">x{item.quantity}</span></p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-bold text-base" style={{ color: '#D96C39' }}>{formatCurrency(item.price)}</p>
+                                                        <p className="font-bold text-base" style={{ color: '#D96C39' }}>
+                                                            {formatCurrency(Number(item.priceOrder || item.price || 0))}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             );
@@ -173,11 +177,12 @@ export default function MyOrdersPage() {
                                     </div>
                                 </div>
 
-                                {/* Footer Order - SỬA PHẦN NÚT BẤM */}
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t px-6 py-4 bg-gray-50/50" style={{ borderColor: '#E8D5B5' }}>
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
-                                        <span className="text-xl font-bold" style={{ color: '#D96C39' }}>{formatCurrency(order.totalPrice)}</span>
+                                        <span className="text-xl font-bold" style={{ color: '#D96C39' }}>
+                                            {formatCurrency(Number(order.totalPrice))}
+                                        </span>
                                     </div>
 
                                     <div className="flex items-center gap-3 w-full sm:w-auto">

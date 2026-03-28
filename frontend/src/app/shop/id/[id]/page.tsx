@@ -1,23 +1,23 @@
 'use client';
 
-import {useState, useEffect} from 'react';
-import {useParams, useRouter} from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
-import {useCart} from '@/contexts/CartContext';
+import { useCart } from '@/contexts/CartContext';
 import toast, { Toaster } from 'react-hot-toast';
-import {isProductOutOfStock, getStockStatusText} from '@/lib/inventory';
-import { axiosClient} from "@/lib/axios";
-import { RawProductResponse} from "@/types/apiTypes";
-import { ProductWithCategory, mapToProductWithCategory} from "@/utils/ProductMapper";
+import { isProductOutOfStock, getStockStatusText } from '@/lib/inventory';
+import { axiosClient } from "@/lib/axios";
+import { RawProductResponse } from "@/types/apiTypes";
+import { ProductWithCategory, mapToProductWithCategory } from "@/utils/ProductMapper";
 
 export default function ProductDetailPage() {
     const params = useParams();
     const router = useRouter();
     const productId = Number(params.id);
-    const {addItem, buyNow} = useCart();
+    const { addItem, buyNow } = useCart();
 
     const [product, setProduct] = useState<ProductWithCategory | null>(null);
     const [categoryName, setCategoryName] = useState<string | null>(null);
@@ -79,25 +79,32 @@ export default function ProductDetailPage() {
     const handleAddToCart = () => {
         if (!product || !product.id) return;
 
-        addItem({
+        const isSuccess = addItem({
             id: product.id,
             productName: product.name,
             price: Number(product.price ?? 0),
+
+            // 👉 THÊM DÒNG NÀY ĐỂ ĐẨY ID NGHỆ NHÂN VÀO GIỎ:
+            artisanId: product.artisan_id || undefined,
+
             image: product.image
                 ? product.image.startsWith('//')
                     ? `https:${product.image}`
                     : product.image.startsWith('http')
-                    ? product.image
-                    : product.image.startsWith('/')
-                    ? product.image
-                    : `/${product.image}`
+                        ? product.image
+                        : product.image.startsWith('/')
+                            ? product.image
+                            : `/${product.image}`
                 : '/tramhon-logo.png',
             stockQuantity: product.stock_quantity,
             quantity: quantity,
         });
 
-        setAddToCartSuccess(true);
-        setTimeout(() => setAddToCartSuccess(false), 3000);
+        // Chỉ hiện Toast Success nếu hàm addItem chạy thành công (không bị chặn khác shop)
+        if (isSuccess) {
+            setAddToCartSuccess(true);
+            setTimeout(() => setAddToCartSuccess(false), 3000);
+        }
     };
 
     const handleBuyNow = () => {
@@ -107,14 +114,15 @@ export default function ProductDetailPage() {
             id: product.id,
             productName: product.name,
             price: Number(product.price ?? 0),
+            artisanId: product.artisan_id || undefined,
             image: product.image
                 ? product.image.startsWith('//')
                     ? `https:${product.image}`
                     : product.image.startsWith('http')
-                    ? product.image
-                    : product.image.startsWith('/')
-                    ? product.image
-                    : `/${product.image}`
+                        ? product.image
+                        : product.image.startsWith('/')
+                            ? product.image
+                            : `/${product.image}`
                 : '/tramhon-logo.png',
             stockQuantity: product.stock_quantity,
             quantity: quantity,
@@ -125,7 +133,7 @@ export default function ProductDetailPage() {
     return (
         <div className="min-h-screen font-sans text-gray-800 bg-white">
             <Toaster position="top-center" />
-            <Header/>
+            <Header />
 
             <main className="container mx-auto px-6 py-12">
                 {loading ? (
@@ -157,10 +165,10 @@ export default function ProductDetailPage() {
                                                 ? product.image.startsWith('//')
                                                     ? `https:${product.image}`
                                                     : product.image.startsWith('http')
-                                                    ? product.image
-                                                    : product.image.startsWith('/')
-                                                    ? product.image
-                                                    : `/${product.image}`
+                                                        ? product.image
+                                                        : product.image.startsWith('/')
+                                                            ? product.image
+                                                            : `/${product.image}`
                                                 : '/tramhon-logo.png'
                                         }
                                         alt={product.name ?? 'Product Image'}
@@ -244,14 +252,14 @@ export default function ProductDetailPage() {
                                         >
                                             {addToCartSuccess ? (
                                                 <span className="flex items-center gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20"
-                               fill="currentColor">
-                            <path fillRule="evenodd"
-                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                  clipRule="evenodd"/>
-                          </svg>
-                          Đã thêm!
-                        </span>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20"
+                                                        fill="currentColor">
+                                                        <path fillRule="evenodd"
+                                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                            clipRule="evenodd" />
+                                                    </svg>
+                                                    Đã thêm!
+                                                </span>
                                             ) : (
                                                 'Thêm vào giỏ'
                                             )}
@@ -275,7 +283,7 @@ export default function ProductDetailPage() {
                                     className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-orange-600 to-yellow-500 text-white px-6 py-3 rounded-full font-semibold shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-all duration-300 ease-in-out transform hover:-translate-y-0.5"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                                         className="w-5 h-5">
+                                        className="w-5 h-5">
                                         <path
                                             fillRule="evenodd"
                                             d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 01.75.75c0 5.056-2.383 9.555-6.084 12.436A6.75 6.75 0 019.75 22.5a.75.75 0 01-.75-.75v-4.131A15.838 15.838 0 016.382 15H2.25a.75.75 0 01-.75-.75 6.75 6.75 0 017.815-6.666zM15 6.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z"
@@ -296,7 +304,7 @@ export default function ProductDetailPage() {
                                 <div className="pt-4 border-t">
                                     <h3 className="font-medium mb-2">Danh mục</h3>
                                     <Link href={`/shop/products?categoryId=${product.category_id}`}
-                                          className="text-sm text-[#0f172a] hover:underline">
+                                        className="text-sm text-[#0f172a] hover:underline">
                                         {categoryName}
                                     </Link>
                                 </div>
@@ -306,7 +314,7 @@ export default function ProductDetailPage() {
                 )}
             </main>
 
-            <Footer/>
+            <Footer />
         </div>
     );
 }

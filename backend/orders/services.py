@@ -7,21 +7,17 @@ from users.models import CustomUser
 
 
 def create_order_from_request(validated_data, user):
-    """
-    Creates an order and its items from validated serializer data.
-    Handles stock reduction and chat status updates within a transaction.
-    """
     items_data = validated_data.pop('items')
 
     if not user.is_authenticated:
         raise ValidationError("Người dùng phải đăng nhập để tạo đơn hàng.")
     customer = user
 
+    artisan_id = validated_data.get('artisan_id')
     try:
-        # Default artisan to user with ID 1 as per old backend logic
-        artisan = CustomUser.objects.get(id=validated_data.get('artisan_id', 1))
+        artisan = CustomUser.objects.get(id=artisan_id, role='ARTISAN')
     except CustomUser.DoesNotExist:
-        raise ValidationError("Nghệ nhân được chỉ định không tồn tại.")
+        raise ValidationError("Nghệ nhân được chỉ định không tồn tại hoặc tài khoản không hợp lệ.")
 
     chat_id = validated_data.get('chat_id')
     chat = None
@@ -30,6 +26,10 @@ def create_order_from_request(validated_data, user):
             chat = Chat.objects.get(id=chat_id)
             if chat.customer != customer:
                 raise ValidationError("Bạn không có quyền tạo đơn hàng từ cuộc hội thoại này.")
+            
+            if chat.artisan != artisan:
+                raise ValidationError("Nghệ nhân của đơn hàng không khớp với cuộc hội thoại.")
+                
         except Chat.DoesNotExist:
             raise ValidationError(f"Không tìm thấy cuộc hội thoại với ID: {chat_id}")
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { ProductsClient } from '@/components/admin/products/ProductsClient';
+import { ProductsClient } from '@/components/artisan/products/ProductsClient';
 import { useEffect, useState, useCallback } from 'react';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import { mapToProduct } from '@/utils/ProductMapper';
@@ -20,7 +20,7 @@ const ProductsPage = () => {
         try {
             setIsLoading(true);
 
-            const response = await axiosAuth.get<PaginatedProductResponse>('/products/?page=0&size=2000');
+            const response = await axiosAuth.get<PaginatedProductResponse>('/products/?page=0&size=2000&artisan=true');
 
             const mappedProducts = response.data.content.map(mapToProduct);
             setProducts(mappedProducts);

@@ -89,7 +89,7 @@ const NavLink = ({ href, children, isCollapsed, exact = false }: { href: string,
 
 // --- Main Layout Component ---
 
-export default function AdminLayout({
+export default function ArtisanLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -103,11 +103,11 @@ export default function AdminLayout({
   
   const SidebarContent = ({ isCollapsed }: { isCollapsed: boolean }) => (
       <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-        <NavLink href="/admin" isCollapsed={isCollapsed} exact={true}>
+        <NavLink href="/artisan" isCollapsed={isCollapsed} exact={true}>
           <Home className="h-5 w-5" />
           {!isCollapsed && 'Dashboard'}
         </NavLink>
-        <NavLink href="/admin/orders" isCollapsed={isCollapsed}>
+        <NavLink href="/artisan/orders" isCollapsed={isCollapsed}>
           <ShoppingCart className="h-5 w-5" />
           {!isCollapsed && (
             <>
@@ -115,11 +115,11 @@ export default function AdminLayout({
             </>
           )}
         </NavLink>
-        <NavLink href="/admin/products" isCollapsed={isCollapsed}>
+        <NavLink href="/artisan/products" isCollapsed={isCollapsed}>
           <Package className="h-5 w-5" />
           {!isCollapsed && 'Sản phẩm'}
         </NavLink>
-        <NavLink href="/admin/chat" isCollapsed={isCollapsed}>
+        <NavLink href="/artisan/chat" isCollapsed={isCollapsed}>
           <MessageSquare className="h-5 w-5" />
           {!isCollapsed && 'Chat'}
         </NavLink>

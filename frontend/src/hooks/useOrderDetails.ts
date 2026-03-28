@@ -38,7 +38,7 @@ const useOrderDetails = (orderId: string | number) => {
         try {
             // Gọi API: PUT /orders/{id}/cancel
             // (Tuỳ backend của bạn là PUT hay POST/PATCH)
-            await axiosAuth.put(`/orders/${orderId}/cancel`);
+            await axiosAuth.put(`/orders/${orderId}/cancel/`);
 
             // Sau khi hủy thành công, reload lại dữ liệu để cập nhật status mới
             await fetchOrder();

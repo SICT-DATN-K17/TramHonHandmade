@@ -159,7 +159,7 @@ export const columns: ColumnDef<any>[] = [
         id: "actions",
         header: "",
         cell: ({ row }) => (
-            <Link href={`/admin/chat/${row.original.chat.id}`}>
+            <Link href={`/artisan/chat/${row.original.chat.id}`}>
                 <Button
                     variant="ghost"
                     size="sm"

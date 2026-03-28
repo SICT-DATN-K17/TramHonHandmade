@@ -179,7 +179,7 @@ export async function GET(request: Request) {
       return NextResponse.json(userOrders);
     }
 
-    // Trả về tất cả đơn hàng (chỉ dành cho admin)
+    // Trả về tất cả đơn hàng (chỉ dành cho artisan)
     return NextResponse.json(db.orders);
   } catch (error) {
     console.error('Get orders API error:', error);

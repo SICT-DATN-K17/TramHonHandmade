@@ -79,8 +79,13 @@ export default function CheckoutPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validate client-side trước để giảm tải cho server
-        if (!validateForm()) {
+        if (!validateForm()) return;
+
+        // --- BẢO VỆ MULTI-VENDOR ---
+        // Đảm bảo item trong giỏ hàng phải có thông tin nghệ nhân
+        const currentArtisanId = items[0]?.artisanId; 
+        if (!currentArtisanId) {
+            toast.error("Lỗi hệ thống: Không xác định được Nghệ nhân của sản phẩm này.");
             return;
         }
 

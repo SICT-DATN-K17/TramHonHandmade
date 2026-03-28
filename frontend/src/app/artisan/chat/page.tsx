@@ -1,4 +1,4 @@
-// frontend/src/app/admin/chat/page.tsx
+// frontend/src/app/artisan/chat/page.tsx
 "use client";
 
 import React from "react";
@@ -18,7 +18,7 @@ const THEME = {
     bgWhite: '#ffffff',       // Trắng
 };
 
-export default function AdminChatManagementPage() {
+export default function ArtisanChatManagementPage() {
     const { chatDataDetails, isLoading, error } = useAllChats();
 
     return (

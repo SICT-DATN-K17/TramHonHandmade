@@ -61,7 +61,7 @@ const formatCurrency = (amount: number | string | undefined) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
 };
 
-export default function AdminChatDetailPage() {
+export default function ArtisanChatDetailPage() {
     const { data: session } = useSession();
     const axiosAuth = useAxiosAuth();
     const params = useParams();
@@ -103,7 +103,7 @@ export default function AdminChatDetailPage() {
     const fetchChatData = useCallback(async () => {
         if (!chatId || Number.isNaN(chatId)) {
             toast.error('ID cuộc trò chuyện không hợp lệ');
-            router.push('/admin/chat');
+            router.push('/artisan/chat');
             return;
         }
 
@@ -149,7 +149,7 @@ export default function AdminChatDetailPage() {
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-            console.log('[WS] Admin WebSocket connected');
+            console.log('[WS] Artisan WebSocket connected');
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
         };
         
@@ -176,7 +176,7 @@ export default function AdminChatDetailPage() {
         };
         
         ws.onclose = () => {
-            console.log('[WS] Admin WebSocket closed');
+            console.log('[WS] Artisan WebSocket closed');
         };
 
         stompClientRef.current = ws as any;
@@ -330,7 +330,7 @@ export default function AdminChatDetailPage() {
                     <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => router.push('/admin/chat')}
+                        onClick={() => router.push('/artisan/chat')}
                         className="rounded-full border-[#E8D5B5] text-[#3F2E23] hover:bg-[#FFF8F0] hover:text-[#3F2E23]"
                     >
                         <ArrowLeft className="h-5 w-5" />

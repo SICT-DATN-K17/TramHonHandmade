@@ -51,7 +51,7 @@ const ProductFormPage = () => {
                 setCategories(mappedCategories);
 
                 if (!isNew) {
-                    const productRes = await axiosAuth.get<any>(`/products/${id}/?admin=true`);
+                    const productRes = await axiosAuth.get<any>(`/products/${id}/?artisan=true`);
                     const productData = productRes.data;
                     const product: Partial<ProductFormData> = productData ? {
                         id: productData.id,
@@ -85,7 +85,7 @@ const ProductFormPage = () => {
             } catch (error) {
                 console.error("Failed to fetch data", error);
                 toast.error(isNew ? "Không thể tải danh mục" : "Không thể tải dữ liệu sản phẩm");
-                if (!isNew) router.push('/admin/products');
+                if (!isNew) router.push('/artisan/products');
             } finally {
                 setLoading(false);
             }
@@ -182,13 +182,13 @@ const ProductFormPage = () => {
             let response;
             if (isNew) {
                 // CREATE
-                response = await axiosAuth.post('/products/', productPayload);
+                response = await axiosAuth.post('/products/?artisan=true', productPayload);
                 toast.success('Tạo sản phẩm thành công!', { id: toastId });
-                router.push('/admin/products');
+                router.push('/artisan/products');
                 router.refresh();
             } else {
                 // UPDATE
-                response = await axiosAuth.put(`/products/${id}/`, productPayload);
+                response = await axiosAuth.put(`/products/${id}/?artisan=true`, productPayload);
                 const updatedProductData = response.data;
                 const updatedProduct: Partial<ProductFormData> = updatedProductData ? {
                     id: updatedProductData.id,
@@ -218,9 +218,9 @@ const ProductFormPage = () => {
         if (isNew || !formData?.id) return;
         confirmDeleteAction(formData.name!, async () => {
             try {
-                await axiosAuth.delete(`/products/${formData.id}/`);
+                await axiosAuth.delete(`/products/${formData.id}/?artisan=true`);
                 toast.success('Xóa sản phẩm thành công.');
-                router.push('/admin/products');
+                router.push('/artisan/products');
                 router.refresh();
             } catch (error) {
                 console.error("Failed to delete product", error);
@@ -303,11 +303,11 @@ const ProductFormPage = () => {
             confirmAction(
                 <span>Các thay đổi cho sản phẩm <strong className="font-semibold">&quot;{formData?.name}&quot;</strong> sẽ không được lưu. Bạn có chắc chắn muốn quay lại?</span>,
                 () => {
-                    router.push('/admin/products');
+                    router.push('/artisan/products');
                 }
             );
         } else {
-            router.push('/admin/products');
+            router.push('/artisan/products');
         }
     };
 

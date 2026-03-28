@@ -34,16 +34,16 @@ export type StoredOrder = {
 /**
  * @deprecated Orders are now stored in the database. These functions are kept for backward compatibility
  * but should not be used. Use API endpoints instead:
- * - GET /api/orders/admin/all - for admin orders list
+ * - GET /api/orders/artisan/all - for artisan orders list
  * - GET /api/orders/{id} - for order details
  * - PUT /api/orders/{id}/status - for updating order status
  */
-const ORDERS_STORAGE_KEY = 'artivio_admin_orders';
+const ORDERS_STORAGE_KEY = 'artivio_artisan_orders';
 
 const isBrowser = () => typeof window !== 'undefined';
 
 /**
- * @deprecated Use API endpoint GET /api/orders/admin/all instead
+ * @deprecated Use API endpoint GET /api/orders/artisan/all instead
  */
 export function getStoredOrders(): StoredOrder[] {
   if (!isBrowser()) return [];

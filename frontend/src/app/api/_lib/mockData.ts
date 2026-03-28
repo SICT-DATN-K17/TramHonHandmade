@@ -2313,19 +2313,6 @@ const PRODUCTS_DATA: Product[] = [
 ]
 
 
-const INITIAL_USERS: User[] = [
-	{
-		id: 1,
-		name: 'Admin',
-		email: 'admin@example.com',
-		// Mật khẩu dạng plain text để dễ dàng cho mock API, trong DB thật đã được hash
-		password: 'password123',
-		role: 'ADMIN',
-		created_at: '2023-01-01T00:00:00.000Z',
-		updated_at: '2023-01-01T00:00:00.000Z',
-	},
-];
-
 // --- BỘ NHỚ TRUNG TÂM (IN-MEMORY DATABASE) ---
 
 // Sử dụng biến global để lưu trữ dữ liệu trong quá trình development (tránh bị reset khi hot reload)
@@ -2340,7 +2327,6 @@ const globalForMock = global as unknown as {
 };
 
 // Tạo ra các bản sao có thể thay đổi được, ưu tiên lấy từ global nếu có
-const usersStore = globalForMock.usersStore || [...INITIAL_USERS];
 const productsStore = globalForMock.productsStore || [...PRODUCTS_DATA];
 const categoriesStore = globalForMock.categoriesStore || [...CATEGORIES_DATA];
 const chatsStore = globalForMock.chatsStore || [];
@@ -2349,7 +2335,6 @@ const ordersStore = globalForMock.ordersStore || [];
 const orderItemsStore = globalForMock.orderItemsStore || [];
 
 if (process.env.NODE_ENV !== 'production') {
-	globalForMock.usersStore = usersStore;
 	globalForMock.productsStore = productsStore;
 	globalForMock.categoriesStore = categoriesStore;
 	globalForMock.chatsStore = chatsStore;
@@ -2360,13 +2345,6 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Các hàm để thao tác với "cơ sở dữ liệu"
 export const db = {
-	users: {
-		find: (predicate: (user: User) => boolean) => usersStore.find(predicate),
-		some: (predicate: (user: User) => boolean) => usersStore.some(predicate),
-		push: (user: User) => usersStore.push(user),
-		findIndex: (predicate: (user: User) => boolean) => usersStore.findIndex(predicate),
-		updatePassword: (index: number, newPass: string) => { usersStore[index].password = newPass; },
-	},
 	products: productsStore,
 	categories: categoriesStore,
 	orders: {

@@ -7,6 +7,7 @@ from .permissions import IsArtisanOrReadOnly
 from .paginations import CustomPagination
 from django.db.models import Sum, Q
 from django.db.models.functions import Coalesce, Lower
+from .models import *
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,12 @@ class ProductViewset(ModelViewSet):
         return super().create(request, *args, **kwargs)
     
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = Product.objects.all()
         
+        is_artisan_req = self.request.query_params.get('artisan') == 'true'
+        
+        if not is_artisan_req:
+            queryset = queryset.filter(status='ACTIVE')
         # Lọc theo categoryId
         category_id = self.request.query_params.get('categoryId')
         if category_id:

@@ -139,10 +139,6 @@ class ChatViewSet(ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='initiate')
     def initiate(self, request, *args, **kwargs):
-        """
-        Khởi tạo một cuộc trò chuyện mới.
-        Tương ứng với `initiateChat` trong controller cũ.
-        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -169,7 +165,6 @@ class ChatViewSet(ModelViewSet):
     def my_chats(self, request):
         """
         Trả về tất cả các cuộc trò chuyện của người dùng đang đăng nhập.
-        Không có pagination để phù hợp với frontend.
         """
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True, context={'request': request})
@@ -215,7 +210,6 @@ class ChatViewSet(ModelViewSet):
         if sender_type == 'ARTISAN' and chat.status == 'PENDING':
             chat.status = 'NEGOTIATING'
         
-        # Cập nhật trường `updated_at` của chat để sắp xếp
         chat.save()
 
         # Phát tin nhắn qua Django Channels

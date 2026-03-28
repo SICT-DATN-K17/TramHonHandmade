@@ -8,6 +8,7 @@ class CustomUserManager(BaseUserManager):
             raise ValueError('Trường Name là bắt buộc')
         if not email:
             raise ValueError('Trường Email là bắt buộc')
+        extra_fields.setdefault('role', 'CUSTOMER')
         email = self.normalize_email(email)
         user = self.model(name=name, email=email, **extra_fields)
         user.set_password(password)
@@ -31,7 +32,8 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('USER', 'Customer'),
-        ('ADMIN', 'Artisan'),
+        ('ARTISAN', 'Artisan'),
+        ('ADMIN', 'Admin'),
     ]
     
     name = models.CharField(max_length=100, unique=True)
@@ -56,11 +58,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.name
     
+    @property
     def is_artisan(self):
-        return self.role == 'ADMIN'
+        return self.role == 'ARTISAN'
     
+    @property
     def is_customer(self):
-        return self.role == 'USER'
+        return self.role == 'CUSTOMER'
+
+    @property
+    def is_system_admin(self):
+        return self.role == 'ADMIN' or self.is_superuser
 
 
 class Otp(models.Model):

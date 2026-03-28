@@ -28,7 +28,7 @@ export const CellAction: React.FC<CellActionProps> = ({ data }) => {
     const [loading, setLoading] = useState(false);
 
     const onEdit = () => {
-        router.push(`/admin/products/${data.id}`);
+        router.push(`/artisan/products/${data.id}`);
     };
 
     const onDelete = async () => {
