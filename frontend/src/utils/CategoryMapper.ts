@@ -5,12 +5,12 @@ export type EnrichedCategory = Category & { soldCount: number };
 
 export const mapToEnrichedCategory = (rawData: RawCategoryResponse): EnrichedCategory => {
     return {
-        id: rawData.categoryId,
-        name: rawData.categoryName,
-        soldCount: rawData.soldCount,
+        categoryId: rawData.categoryId,
+        categoryName: rawData.categoryName,
+        soldCount: rawData.soldCount || 0,
         slug: rawData.slug,
-        parent_id: rawData.parentId,
-        created_at: rawData.createdAt,
-        updated_at: rawData.updatedAt,
+        parentId: rawData.parentId,
+        createdAt: rawData.createdAt,
+        updatedAt: rawData.updatedAt,
     };
 }

@@ -29,7 +29,6 @@ const SORT_OPTIONS = [
     { id: 'name-desc', label: 'Tên: Z-A' },
 ];
 
-// --- Reusable Styled Components (as per new pattern) ---
 const inputStyles: React.CSSProperties = {
     backgroundColor: '#FFF8F0',
     borderColor: '#D96C39',
@@ -41,18 +40,14 @@ const inputStyles: React.CSSProperties = {
     width: '100%',
 };
 
-// --- Main Component ---
 interface ProductsClientProps {
     data: Product[];
 }
 
 export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
     const router = useRouter();
-
-    // 1. Khởi tạo hook axiosAuth
     const axiosAuth = useAxiosAuth();
 
-    // --- State for Filters ---
     const [categories, setCategories] = useState<Category[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategoryId, setSelectedCategoryId] = useState<'all' | number>('all');
@@ -60,15 +55,12 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
     const [sortBy, setSortBy] = useState('featured');
     const [isLoading, setIsLoading] = useState(true);
 
-    // 2. Fetch Categories dùng axiosAuth
     useEffect(() => {
         const getCategories = async () => {
             try {
                 setIsLoading(true);
-                // Sử dụng axiosAuth.get
-                const response = await axiosAuth.get<RawCategoryResponse[]>('/category/');
-                const rawCats = response.data; // Lấy data từ response
-
+                const response = await axiosAuth.get<RawCategoryResponse[]>('/categories/');
+                const rawCats = Array.isArray(response.data) ? response.data : (response.data as any).content || [];
                 const cats = rawCats.map(mapToEnrichedCategory);
                 setCategories(cats);
             } catch (error) {
@@ -78,12 +70,12 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
             }
         };
         getCategories();
-    }, [axiosAuth]); // Thêm axiosAuth vào dependency
+    }, [axiosAuth]);
 
     const filteredProducts = useMemo(() => {
         return data
             .filter(product => {
-                const matchesCategory = selectedCategoryId === 'all' || product.category_id === selectedCategoryId;
+                const matchesCategory = selectedCategoryId === 'all' || product.categoryId === selectedCategoryId;
 
                 const matchesSearch = searchQuery === '' ||
                     product.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -106,7 +98,7 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
                         return b.name.localeCompare(a.name);
                     case 'featured':
                     default:
-                        return (b.quantity_sold || 0) - (a.quantity_sold || 0);
+                        return (b.quantitySold || 0) - (a.quantitySold || 0);
                 }
             });
     }, [data, searchQuery, selectedCategoryId, priceRange, sortBy]);
@@ -115,8 +107,8 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
         if (selectedCategoryId === 'all') {
             return `Tất cả sản phẩm (${filteredProducts.length})`;
         }
-        const category = categories.find(c => c.id === selectedCategoryId);
-        const categoryName = category ? category.name : 'Sản phẩm';
+        const category = categories.find(c => c.categoryId === selectedCategoryId);
+        const categoryName = category ? category.categoryName : 'Sản phẩm';
         return `${categoryName} (${filteredProducts.length})`;
     }, [selectedCategoryId, categories, filteredProducts.length]);
 
@@ -160,23 +152,19 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
         );
     };
 
-    // 3. Delete Product dùng axiosAuth
     const handleDeleteProduct = useCallback((productId: number, name: string) => {
         confirmDeleteAction(name, async () => {
             try {
-                // Sử dụng axiosAuth.delete
                 await axiosAuth.delete(`/products/${productId}/`);
-
                 toast.success(`Đã xóa sản phẩm "${name}" thành công.`);
-                // Trigger custom event to refresh products list
                 window.dispatchEvent(new Event('products-refresh'));
-                router.refresh(); // Tải lại dữ liệu từ server để cập nhật bảng
+                router.refresh();
             } catch (error) {
                 console.error("Failed to delete product:", error);
                 toast.error(`Xóa sản phẩm "${name}" thất bại.`);
             }
         });
-    }, [router, axiosAuth]); // Thêm axiosAuth vào dependency
+    }, [router, axiosAuth]);
 
     const columns: ColumnDef<Product>[] = useMemo(() => [
         {
@@ -184,19 +172,18 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
             header: () => <div style={{ width: '200px', minWidth: '300px' }}>Sản phẩm</div>,
             cell: ({ row }) => {
                 const product = row.original;
-                // Normalize image URL: convert protocol-relative URLs (//) to absolute URLs (https://)
                 let imageUrl = product.image ? product.image : '/tramhon-logo.png';
                 if (imageUrl.startsWith('//')) {
                     imageUrl = `https:${imageUrl}`;
                 } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-                    imageUrl = `/${imageUrl}`;
+                    imageUrl = `http://127.0.0.1:8000/${imageUrl}`;
                 }
                 return (
                     <div className="flex items-center gap-4 font-medium" style={{ color: '#3F2E23' }}>
-                        <div className="flex-shrink-0">
-                            <Image src={imageUrl} alt={product.name} width={48} height={48} className="rounded-md object-cover" />
+                        <div className="flex-shrink-0 relative h-12 w-12 border border-gray-200 rounded-md overflow-hidden">
+                            <Image src={imageUrl} alt={product.name} fill sizes="48px" className="object-cover" />
                         </div>
-                        <span className="font-bold">{product.name}</span>
+                        <span className="font-bold line-clamp-2">{product.name}</span>
                     </div>
                 );
             }
@@ -205,14 +192,14 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
             id: 'category',
             header: 'Danh mục',
             cell: ({ row }) => {
-                const category = categories.find(c => c.id === row.original.category_id);
-                return <span className="text-sm" style={{ color: '#6B4F3E' }}>{category?.name || '---'}</span>;
+                const category = categories.find(c => c.categoryId === row.original.categoryId);
+                return <span className="text-sm" style={{ color: '#6B4F3E' }}>{category?.categoryName || 'Chưa phân loại'}</span>;
             }
         },
-        { accessorKey: 'price', header: 'Giá', cell: ({ row }) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(row.original.price) },
-        { accessorKey: 'stock_quantity', header: 'Tồn kho' },
+        { accessorKey: 'price', header: 'Giá', cell: ({ row }) => <span className="text-[#D96C39] font-medium">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(row.original.price)}</span> },
+        { accessorKey: 'stockQuantity', header: 'Tồn kho', cell: ({row}) => <span className="font-medium text-gray-700">{row.original.stockQuantity}</span> },
         { accessorKey: 'status', header: 'Trạng thái', cell: ({ row }) => (
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${ row.original.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${ row.original.status === 'ACTIVE' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-800 border border-gray-200' }`}>
           {row.original.status === 'ACTIVE' ? 'Hoạt động' : 'Bị ẩn'}
         </span>
             )
@@ -229,14 +216,14 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
                                 e.stopPropagation();
                                 router.push(`/artisan/products/${product.id}`);
                             }}
-                            className="p-2 rounded-full text-blue-500 hover:bg-blue-100 transition-colors"
+                            className="p-2 rounded-full text-blue-600 hover:bg-blue-100 transition-colors"
                             title="Xem chi tiết & Chỉnh sửa"
                         ><Edit className="h-4 w-4" /></button>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteProduct(product.id, product.name);
-                            }} className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors" title="Xóa sản phẩm"><Trash className="h-4 w-4" /></button>
+                            }} className="p-2 rounded-full text-red-600 hover:bg-red-100 transition-colors" title="Xóa sản phẩm"><Trash className="h-4 w-4" /></button>
                     </div>
                 );
             }
@@ -245,63 +232,57 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
 
     return (
         <div className="space-y-8">
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: '#3F2E23' }}>
                         {title}
                     </h1>
-                    <p className="text-sm" style={{ color: '#6B4F3E' }}>
-                        Dễ dàng quản lý, sắp xếp và theo dõi sản phẩm của bạn.
+                    <p className="text-sm mt-2" style={{ color: '#6B4F3E' }}>
+                        Quản lý toàn bộ danh sách sản phẩm trên gian hàng của bạn.
                     </p>
                 </div>
                 <button
                     onClick={() => router.push(`/artisan/products/new`)}
-                    className="px-6 py-3 text-sm font-medium rounded-full shadow-md text-white transition-all transform hover:scale-105"
+                    className="px-6 py-3 text-sm font-medium rounded-full shadow-md text-white transition-all transform hover:scale-105 flex items-center gap-2"
                     style={{ backgroundColor: '#D96C39' }}
                 >
-                    <Plus className="mr-2 h-4 w-4 inline-block" />
-                    Thêm mới
+                    <Plus className="h-4 w-4" />
+                    Thêm Sản Phẩm Mới
                 </button>
             </div>
 
-            {/* Filters UI */}
-            <div className="space-y-6 p-6 rounded-xl" style={{ backgroundColor: '#FDFBF7', border: '1px solid #E8D5B5' }}>
+            <div className="space-y-6 p-6 rounded-xl shadow-sm" style={{ backgroundColor: '#FDFBF7', border: '1px solid #E8D5B5' }}>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Search */}
                     <div className="md:col-span-3">
-                        <label htmlFor="search" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Tìm kiếm</label>
+                        <label htmlFor="search" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Tìm kiếm theo tên</label>
                         <input
                             id="search"
                             type="text"
-                            placeholder="Tìm theo tên sản phẩm..."
+                            placeholder="Nhập tên sản phẩm cần tìm..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             style={inputStyles}
                             className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none"
                         />
                     </div>
-                    {/* Price Range */}
                     <div>
                         <label htmlFor="price-range" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Lọc theo giá</label>
-                        <select id="price-range" value={priceRange} onChange={e => setPriceRange(e.target.value)} style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none">
+                        <select id="price-range" value={priceRange} onChange={e => setPriceRange(e.target.value)} style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none cursor-pointer">
                             {PRICE_RANGES.map(range => <option key={range.id} value={range.id}>{range.label}</option>)}
                         </select>
                     </div>
-                    {/* Sort By */}
                     <div>
-                        <label htmlFor="sort-by" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Sắp xếp theo</label>
-                        <select id="sort-by" value={sortBy} onChange={e => setSortBy(e.target.value)} style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none">
+                        <label htmlFor="sort-by" className="block text-sm font-medium mb-2" style={{color: '#3F2E23'}}>Sắp xếp</label>
+                        <select id="sort-by" value={sortBy} onChange={e => setSortBy(e.target.value)} style={inputStyles} className="focus:ring-2 focus:ring-[#D96C39] focus:border-transparent focus:outline-none cursor-pointer">
                             {SORT_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                         </select>
                     </div>
                 </div>
 
-                {/* Category Filter */}
-                <div>
-                    <label className="block text-sm font-medium mb-3" style={{color: '#3F2E23'}}>Lọc theo danh mục</label>
+                <div className="pt-2 border-t" style={{ borderColor: '#E8D5B5' }}>
+                    <label className="block text-sm font-medium mb-3 mt-4" style={{color: '#3F2E23'}}>Lọc theo Danh mục</label>
                     {isLoading ? (
-                        <div className="text-sm" style={{ color: '#6B4F3E' }}>Đang tải danh mục...</div>
+                        <div className="text-sm animate-pulse" style={{ color: '#D96C39' }}>Đang tải danh mục...</div>
                     ) : (
                         <div className="flex flex-wrap gap-3">
                             <button
@@ -317,16 +298,16 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
                             </button>
                             {categories.map((category, index) => (
                                 <button
-                                    key={category.id ?? `category-${index}`}
-                                    onClick={() => setSelectedCategoryId(category.id)}
+                                    key={category.categoryId ?? `category-${index}`}
+                                    onClick={() => setSelectedCategoryId(category.categoryId)}
                                     className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 shadow-sm border"
                                     style={{
-                                        backgroundColor: selectedCategoryId === category.id ? '#D96C39' : '#F7F1E8',
-                                        color: selectedCategoryId === category.id ? 'white' : '#3F2E23',
-                                        borderColor: selectedCategoryId === category.id ? '#D96C39' : '#D96C39'
+                                        backgroundColor: selectedCategoryId === category.categoryId ? '#D96C39' : '#F7F1E8',
+                                        color: selectedCategoryId === category.categoryId ? 'white' : '#3F2E23',
+                                        borderColor: selectedCategoryId === category.categoryId ? '#D96C39' : '#D96C39'
                                     }}
                                 >
-                                    {category.name}
+                                    {category.categoryName}
                                 </button>
                             ))}
                         </div>
@@ -335,7 +316,7 @@ export const ProductsClient: React.FC<ProductsClientProps> = ({ data }) => {
             </div>
 
             {/* Product Table */}
-            <div className="rounded-xl" style={{ backgroundColor: '#FDFBF7', border: '1px solid #E8D5B5' }}>
+            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: '#FDFBF7', border: '1px solid #E8D5B5' }}>
                 <DataTable columns={columns} data={filteredProducts} onRowClick={handleRowClick} />
             </div>
         </div>

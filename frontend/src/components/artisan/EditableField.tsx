@@ -65,7 +65,7 @@ const EditableField = ({
           className={commonClasses}
           rows={5}
           autoFocus
-        />
+        />  
       );
     }
     if (inputType === 'select') {

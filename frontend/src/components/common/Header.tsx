@@ -8,6 +8,7 @@ import { useCart } from '@/contexts/CartContext';
 import CartSidebar from '@/components/cart/CartSidebar';
 
 import { Category } from '@/types';
+import { axiosClient } from '@/lib/axios';
 
 const categoryIcons: Record<string, string> = {
   "Đồng hồ": "🕰️",
@@ -31,10 +32,12 @@ export default function Header() {
   const { getTotalItems } = useCart();
   const cartItemCount = getTotalItems();
 
-  useEffect(() => {
-    fetch('/api/categories')
-      .then(res => res.json())
-      .then(data => setCategories(Array.isArray(data) ? data : []))
+useEffect(() => {
+    axiosClient.get('/categories/')
+      .then(res => {
+        const data = res.data.content || res.data.results || res.data;
+        setCategories(Array.isArray(data) ? data : []);
+      })
       .catch(err => console.error("Failed to fetch categories for header:", err));
 
     const handleClickOutside = (event: MouseEvent) => {
@@ -100,17 +103,17 @@ export default function Header() {
             </button>
 
             <div className={`absolute top-full left-0 mt-2 w-56 rounded-lg shadow-lg transition-all duration-300 origin-top ${isOpen ? 'opacity-100 scale-y-100 visible' : 'opacity-0 scale-y-95 invisible'}`} style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
-              {categories.map((cat, idx) => (
+              {categories.map((cat, idx:number) => (
                 <Link
-                  key={cat.id}
-                  href={`/shop/products?categoryId=${cat.id}`}
+                  key={cat.categoryId || idx}
+                  href={`/shop/products?categoryId=${cat.categoryId}`}
                   onClick={() => setIsOpen(false)}
                   className={`block px-4 py-3 text-sm transition-all duration-200 relative group overflow-hidden ${idx === 0 ? 'rounded-t-lg' : ''} ${idx === categories.length - 1 ? 'rounded-b-lg' : ''}`}
                   style={{ color: '#3F2E23' }}
                 >
                   <span className="relative z-10 group-hover:font-semibold transition-all flex items-center gap-3">
-                    <span className="text-lg">{categoryIcons[cat.name] ?? '🎁'}</span>
-                    <span>{cat.name}</span>
+                    <span className="text-lg">{categoryIcons[cat.categoryName] ?? '🎁'}</span>
+                    <span>{cat.categoryName}</span>
                   </span>
                   <div className="absolute inset-0 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 -z-0" style={{ backgroundColor: '#F4C27A', opacity: 0.2 }}></div>
                 </Link>

@@ -7,12 +7,14 @@ class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.ReadOnlyField(source='category.name')
     image = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
+    artisan_id = serializers.ReadOnlyField(source='artisan.id')
+    artisan_name = serializers.ReadOnlyField(source='artisan.name')
+    
     class Meta:
         model = Product
-        fields = ['id', 'name', 'price', 'image', 'quantity_sold', 'stock_quantity', 'category_id', 'description', 'category_name', 'status', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'price', 'image', 'quantity_sold', 'stock_quantity', 'category_id', 'description', 'category_name', 'status', 'created_at', 'updated_at', 'artisan_id', 'artisan_name']
     
     def validate_image(self, value):
-        """Convert null/empty/undefined strings to empty string"""
         if value is None or value == 'null' or value == 'undefined' or value == '':
             return ''
         return value

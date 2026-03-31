@@ -7,7 +7,7 @@ from .views import SignatureAPIView
 
 router= DefaultRouter()
 router.register(r'products', ProductViewset, basename='product')
-router.register(r'category', CategoryViewset, basename='category')
+router.register(r'categories', CategoryViewset, basename='category')
 router.register(r'orders', OrderViewSet, basename='order')
 router.register(r'chat', ChatViewSet, basename='chat')
 

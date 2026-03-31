@@ -5,14 +5,14 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Image from "next/image";
 import Link from "next/link";
 import { Header, Footer } from "../../../components/common";
-import { ShoppingCart, CreditCard } from 'lucide-react';
+import { ShoppingCart, CreditCard, Store } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useCart } from '@/contexts/CartContext';
 
-// --- Type Definitions (Giả định dựa trên code cũ) ---
+// --- Type Definitions ---
 import { EnrichedCategory, mapToEnrichedCategory } from '@/utils/CategoryMapper';
 import { RawCategoryResponse, PaginatedProductResponse } from '@/types/apiTypes';
-import { initializeProductsStorage, isProductOutOfStock, getStockStatusText } from '@/lib/inventory';
+import { isProductOutOfStock, getStockStatusText } from '@/lib/inventory';
 import { axiosClient } from "@/lib/axios";
 import { mapToProductWithCategory, ProductWithCategory } from '@/utils/ProductMapper';
 
@@ -48,7 +48,7 @@ function ProductsPageContent() {
     const pathname = usePathname();
     const { addItem, buyNow } = useCart();
 
-    // 1. Lấy giá trị từ URL làm giá trị khởi tạo (Source of Truth)
+    // 1. Lấy giá trị từ URL làm giá trị khởi tạo
     const categoryIdParam = searchParams.get('categoryId') || 'all';
     const pageParam = parseInt(searchParams.get('page') || '1', 10);
     const priceRangeParam = searchParams.get('priceRange') || 'all';
@@ -66,7 +66,7 @@ function ProductsPageContent() {
     const [totalPages, setTotalPages] = useState(0);
 
     const pageSize = 24;
-    const safePage = Math.max(0, pageParam - 1); // API thường dùng page index 0, URL dùng page 1
+    const safePage = Math.max(0, pageParam - 1);
 
     // 3. Debounce Search
     useEffect(() => {
@@ -76,13 +76,14 @@ function ProductsPageContent() {
             }
         }, 500);
         return () => clearTimeout(timer);
-    }, [searchTerm]); // Bỏ keywordParam khỏi dep để tránh loop vô tận
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm]);
 
-    // Cập nhật lại searchTerm nếu URL thay đổi từ bên ngoài (VD: back button)
     useEffect(() => {
         if (keywordParam !== searchTerm) {
             setSearchTerm(keywordParam);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [keywordParam]);
 
     // 4. Hàm cập nhật URL trung tâm
@@ -97,7 +98,6 @@ function ProductsPageContent() {
             }
         });
 
-        // Reset về categoryId nếu chọn 'all'
         if (newParams.categoryId === 'all') current.delete('categoryId');
 
         const search = current.toString();
@@ -105,19 +105,22 @@ function ProductsPageContent() {
         router.push(`${pathname}${query}`, { scroll: false });
     }, [searchParams, router, pathname]);
 
-    // 5. Fetch Data Effect (Chỉ chạy khi URL Params thay đổi)
+    // 5. Fetch Data Effect 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
                 if (categories.length === 0) {
-                    const categoriesRes = await axiosClient.get<RawCategoryResponse[]>('/category');
-                    setCategories(categoriesRes.data.map(mapToEnrichedCategory));
+                    // 👉 FIX: Thêm '/' vào URL
+                    const categoriesRes = await axiosClient.get<RawCategoryResponse[]>('/categories/');
+                    // Xử lý đề phòng backend bọc mảng trong content
+                    const catData = Array.isArray(categoriesRes.data) ? categoriesRes.data : (categoriesRes.data as any).content || [];
+                    setCategories(catData.map(mapToEnrichedCategory));
                 }
 
                 const params = new URLSearchParams();
                 params.set('size', String(pageSize));
-                params.set('page', String(safePage)); // API page index starts at 0
+                params.set('page', String(safePage));
 
                 if (categoryIdParam !== 'all') params.set('categoryId', categoryIdParam);
                 if (keywordParam) params.set('keyword', keywordParam);
@@ -132,9 +135,8 @@ function ProductsPageContent() {
 
                 if (sortParam !== 'featured') params.set('sort', sortParam);
 
-                console.log(">>> Fetching with params:", params.toString());
-
-                const pagedResponse = await axiosClient.get<PaginatedProductResponse>('/products', { params });
+                // 👉 FIX: Thêm '/' vào URL
+                const pagedResponse = await axiosClient.get<PaginatedProductResponse>('/products/', { params });
                 const productData = pagedResponse.data;
 
                 setTotalItems(productData.totalElements);
@@ -151,6 +153,7 @@ function ProductsPageContent() {
         }
 
         fetchData().catch(console.error);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [categoryIdParam, pageParam, priceRangeParam, sortParam, keywordParam]);
 
 
@@ -169,8 +172,9 @@ function ProductsPageContent() {
             productName: product.name,
             price: product.price,
             image: product.image || '/tramhon-logo.png',
-            stockQuantity: product.stock_quantity,
+            stockQuantity: product.stockQuantity,
             quantity: 1,
+            artisanId: product.artisanId || undefined // Bổ sung cho giỏ hàng
         });
 
         toast.success('Đã thêm vào giỏ hàng!');
@@ -190,26 +194,17 @@ function ProductsPageContent() {
             productName: product.name,
             price: product.price,
             image: product.image || '/tramhon-logo.png',
-            stockQuantity: product.stock_quantity,
-            quantity: 1, // Default to 1 for buy now from product list
+            stockQuantity: product.stockQuantity,
+            quantity: 1,
+            artisanId: product.artisanId || undefined
         });
 
         router.push('/checkout');
     };
 
-    if (loading && products.length === 0 && categories.length === 0) {
-        return (
-            <div className="text-center py-16">
-                <div className="text-lg font-medium animate-pulse" style={{ color: '#D96C39' }}>
-                    ✨ Đang tải sản phẩm...
-                </div>
-            </div>
-        );
-    }
-
     return (
         <main className="container mx-auto px-6 py-12"
-              style={{ background: 'linear-gradient(to bottom, #F7F1E8, #F7F1E8)' }}>
+            style={{ background: 'linear-gradient(to bottom, #F7F1E8, #F7F1E8)' }}>
 
             {/* Page Header */}
             <div className="mb-12 text-center">
@@ -239,9 +234,9 @@ function ProductsPageContent() {
                     />
                     <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                             style={{ color: '#D96C39' }}>
+                            style={{ color: '#D96C39' }}>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
                 </div>
@@ -250,12 +245,13 @@ function ProductsPageContent() {
             {/* Category Filter */}
             <div className="mb-10">
                 <div className="flex flex-wrap gap-3 justify-center">
-                    {[{ id: 'all', name: 'Tất cả' }, ...categories].map((category) => {
-                        const isSelected = category.id.toString() === categoryIdParam.toString();
+                    {/* 👉 FIX: Object ảo cho nút "Tất cả" phải dùng categoryId và categoryName */}
+                    {[{ categoryId: 'all', categoryName: 'Tất cả' } as any, ...categories].map((category) => {
+                        const isSelected = category.categoryId.toString() === categoryIdParam.toString();
                         return (
                             <button
-                                key={category.id}
-                                onClick={() => updateUrlParams({ categoryId: String(category.id), page: '1' })}
+                                key={category.categoryId}
+                                onClick={() => updateUrlParams({ categoryId: String(category.categoryId), page: '1' })}
                                 className={`px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 shadow-sm border`}
                                 style={{
                                     backgroundColor: isSelected ? '#D96C39' : '#F7F1E8',
@@ -264,8 +260,8 @@ function ProductsPageContent() {
                                 }}
                             >
                                 <span className="flex items-center gap-3">
-                                    <span className="text-lg">{categoryIcons[String(category.name)] ?? '🎁'}</span>
-                                    <span>{category.name}</span>
+                                    <span className="text-lg">{categoryIcons[String(category.categoryName)] ?? '🎁'}</span>
+                                    <span>{category.categoryName}</span>
                                 </span>
                             </button>
                         );
@@ -278,15 +274,15 @@ function ProductsPageContent() {
                 {/* Price Range Filter */}
                 <div className="md:col-span-1">
                     <div className="rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300"
-                         style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
+                        style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
                         <h3 className="font-semibold mb-5 flex items-center gap-3 text-base" style={{ color: '#3F2E23' }}>
                             <span>Mức Giá</span>
                         </h3>
                         <div className="space-y-3">
                             {PRICE_RANGES.map((range) => (
                                 <label key={range.id}
-                                       className="flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-all duration-200"
-                                       style={{ color: '#3F2E23' }}>
+                                    className="flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-all duration-200"
+                                    style={{ color: '#3F2E23' }}>
                                     <input
                                         type="radio"
                                         name="priceRange"
@@ -296,7 +292,7 @@ function ProductsPageContent() {
                                         className="w-4 h-4"
                                     />
                                     <span className={`text-sm ${priceRangeParam === range.id ? 'font-semibold' : ''}`}
-                                          style={{ color: priceRangeParam === range.id ? '#D96C39' : '#3F2E23' }}>
+                                        style={{ color: priceRangeParam === range.id ? '#D96C39' : '#3F2E23' }}>
                                         {range.label}
                                     </span>
                                 </label>
@@ -309,7 +305,7 @@ function ProductsPageContent() {
                 <div className="md:col-span-3">
                     {/* Sort Bar */}
                     <div className="flex items-center justify-between mb-8 p-5 rounded-xl shadow-sm"
-                         style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
+                        style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
                         <div className="text-sm font-medium" style={{ color: '#3F2E23' }}>
                             Tìm thấy <span style={{ color: '#D96C39', fontWeight: 'bold' }}>{totalItems}</span> sản phẩm
                         </div>
@@ -338,8 +334,7 @@ function ProductsPageContent() {
                     {/* Products Grid */}
                     {loading ? (
                         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full opacity-50 pointer-events-none">
-                            {/* Giữ layout khi đang loading nhẹ (chuyển trang) */}
-                            {Array.from({length: 6}).map((_, i) => (
+                            {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-96 rounded-xl bg-gray-200 animate-pulse"></div>
                             ))}
                         </div>
@@ -347,13 +342,12 @@ function ProductsPageContent() {
                         <div>
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                                 {products.map((product, idx) => {
-                                    const categoryName = categories.find(c => c.id === product.category_id)?.name || 'Chưa phân loại';
+                                    // 👉 FIX: Sửa thành categoryId và categoryName
+                                    const categoryName = categories.find(c => c.categoryId === product.categoryId)?.categoryName || 'Chưa phân loại';
                                     const isOutOfStock = isProductOutOfStock(product);
 
-                                    // Xử lý ảnh an toàn
                                     let imageUrl = product.image || '/tramhon-logo.png';
                                     if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
-                                    // Handle relative paths from backend
                                     if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
                                         imageUrl = `http://127.0.0.1:8000/${imageUrl}`;
                                     }
@@ -387,18 +381,26 @@ function ProductsPageContent() {
                                                         </div>
                                                     )}
 
-                                                    {product.quantity_sold && product.quantity_sold > 0 && !isOutOfStock && (
+                                                    {product.quantitySold && product.quantitySold > 0 && !isOutOfStock && (
                                                         <div className="absolute top-3 right-3 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md" style={{ backgroundColor: '#D96C39' }}>
                                                             ⭐ Bán chạy
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                {/* Content */}
                                                 <div className="p-5 flex-1 flex flex-col pointer-events-none relative z-10">
-                                                    <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#D96C39' }}>
-                                                        {categoryName}
+
+                                                    <div className="flex items-center justify-between mb-3 gap-2">
+                                                        <div className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: '#D96C39' }}>
+                                                            {categoryName}
+                                                        </div>
+                                                        <div className="flex items-center shrink-0 shadow-sm">
+                                                            <span className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1">
+                                                                <Store size={12} /> <span className="truncate max-w-[120px]">{product.artisanName || 'Trạm Hồn'}</span>
+                                                            </span>
+                                                        </div>
                                                     </div>
+
                                                     <h3 className="text-sm font-semibold mb-2 line-clamp-2 transition-colors" style={{ color: '#3F2E23' }}>
                                                         {product.name}
                                                     </h3>
@@ -456,7 +458,7 @@ function ProductsPageContent() {
                             {/* Pagination */}
                             <div className="mt-12 flex items-center justify-center gap-2 pb-8 w-full">
                                 <button
-                                    onClick={() => updateUrlParams({ page: String(safePage) })} // Prev Page (current page index in URL is +1, so current index is prev page number)
+                                    onClick={() => updateUrlParams({ page: String(safePage) })}
                                     disabled={safePage === 0}
                                     className="px-4 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                     style={{
@@ -495,7 +497,7 @@ function ProductsPageContent() {
                                 })}
 
                                 <button
-                                    onClick={() => updateUrlParams({ page: String(safePage + 2) })} // Next Page (current + 1 + 1 for URL format)
+                                    onClick={() => updateUrlParams({ page: String(safePage + 2) })}
                                     disabled={safePage >= totalPages - 1}
                                     className="px-4 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                     style={{

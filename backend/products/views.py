@@ -1,36 +1,58 @@
 from django.shortcuts import render
-from .models import *
-from .serializers import *
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import permissions
-from .permissions import IsArtisanOrReadOnly
-from .paginations import CustomPagination
+from rest_framework.exceptions import PermissionDenied
 from django.db.models import Sum, Q
 from django.db.models.functions import Coalesce, Lower
-from .models import *
 import logging
+
+from .models import *
+from .serializers import *
+from .permissions import IsArtisanOrReadOnly
+from .paginations import CustomPagination
 
 logger = logging.getLogger(__name__)
 
-# Create your views here.
 class ProductViewset(ModelViewSet):
-    queryset= Product.objects.filter(status='ACTIVE')
-    serializer_class= ProductSerializer
-    pagination_class= CustomPagination
-    permission_classes= [permissions.AllowAny, permissions.IsAuthenticatedOrReadOnly, IsArtisanOrReadOnly]
+    queryset = Product.objects.all() 
+    serializer_class = ProductSerializer
+    pagination_class = CustomPagination
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsArtisanOrReadOnly]
     
-    def create(self, request, *args, **kwargs):
-        logger.warning(f'[Products] POST request data: {request.data}')
-        return super().create(request, *args, **kwargs)
-    
+    def perform_create(self, serializer):
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        
+        # Chỉ ARTISAN hoặc ADMIN mới được tạo sản phẩm
+        if role in ['ARTISAN', 'ADMIN'] or getattr(user, 'is_superuser', False):
+            serializer.save(artisan=user)
+        else:
+            raise PermissionDenied("Chỉ Nghệ nhân hoặc Admin mới được phép đăng sản phẩm.")
+
     def get_queryset(self):
         queryset = Product.objects.all()
+        user = self.request.user
         
-        is_artisan_req = self.request.query_params.get('artisan') == 'true'
-        
-        if not is_artisan_req:
+        role = getattr(user, 'role', '')
+        is_admin = role == 'ADMIN' or getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False)
+        is_artisan = role == 'ARTISAN'
+
+        if is_admin:
+            pass 
+            
+        elif is_artisan:
+            queryset = queryset.filter(artisan_id=user.id)
+            
+        else:
             queryset = queryset.filter(status='ACTIVE')
-        # Lọc theo categoryId
+            
+            target_artisan = self.request.query_params.get('artisanId')
+            if target_artisan:
+                try:
+                    queryset = queryset.filter(artisan_id=int(target_artisan))
+                except ValueError:
+                    pass
+
         category_id = self.request.query_params.get('categoryId')
         if category_id:
             try:
@@ -38,7 +60,6 @@ class ProductViewset(ModelViewSet):
             except (ValueError, TypeError):
                 pass
         
-        # Lọc theo từ khóa (keyword)
         keyword = self.request.query_params.get('keyword')
         if keyword:
             queryset = queryset.filter(
@@ -72,9 +93,10 @@ class ProductViewset(ModelViewSet):
 
         return queryset
 
+
 class CategoryViewset(ModelViewSet):
     queryset = Category.objects.annotate(
         sold_count=Coalesce(Sum('products__quantity_sold'), 0)
     ).order_by('-sold_count')
-    serializer_class= CategorySerializer
-    permission_classes= [permissions.AllowAny]
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.AllowAny]

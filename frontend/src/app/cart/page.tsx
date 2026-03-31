@@ -63,6 +63,19 @@ export default function CartPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Cart Items */}
                             <div className="lg:col-span-2 space-y-4">
+                                <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 flex items-center gap-3 shadow-sm mb-2">
+                                    <div className="bg-white p-2 rounded-full shadow-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-orange-600 font-medium uppercase tracking-wider">Gian hàng</p>
+                                        <p className="text-lg font-bold text-orange-900">
+                                            Nghệ nhân #{items[0]?.artisanId || 'Không xác định'}
+                                        </p>
+                                    </div>
+                                </div>
                                 {items.map((item) => (
                                     <div
                                         key={item.id}
@@ -78,10 +91,10 @@ export default function CartPage() {
                                                                 ? item.image.startsWith('//')
                                                                     ? `https:${item.image}`
                                                                     : item.image.startsWith('http')
-                                                                    ? item.image
-                                                                    : item.image.startsWith('/')
-                                                                    ? item.image
-                                                                    : `/${item.image}`
+                                                                        ? item.image
+                                                                        : item.image.startsWith('/')
+                                                                            ? item.image
+                                                                            : `/${item.image}`
                                                                 : '/tramhon-logo.png'
                                                         }
                                                         alt={item.productName}

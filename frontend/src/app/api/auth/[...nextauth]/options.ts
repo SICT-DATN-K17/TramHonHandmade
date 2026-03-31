@@ -2,7 +2,6 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import FacebookProvider from "next-auth/providers/facebook";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db } from "@/app/api/_lib/mockData";
 import axios from "axios"; // Import trực tiếp axios, không dùng instance chung
 
 // Ưu tiên đường dẫn nội bộ khi chạy trong Docker
@@ -61,19 +60,6 @@ export const authOptions: NextAuthOptions = {
             if (!user.email) return false;
             if (account?.provider === "credentials") return true;
 
-            const userExists = db.users.some((dbUser) => dbUser.email === user.email);
-            if (!userExists) {
-                const newUser = {
-                    id: Date.now(),
-                    name: user.name || "New User",
-                    email: user.email,
-                    password: "",
-                    role: "USER" as const,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                };
-                db.users.push(newUser);
-            }
             return true;
         },
         async jwt({ token, user, account }) {

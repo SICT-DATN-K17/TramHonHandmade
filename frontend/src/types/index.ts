@@ -1,25 +1,28 @@
 export type Product = {
     id: number;
-    artisan_id: number | null;
-    category_id: number | null;
+    artisanId: number | null;
+    artisanName?: string;
+    categoryId: number | null;
+    categoryName?: string; 
     name: string;
     description: string | null;
     price: number;
     image: string | null;
     status: 'ACTIVE' | 'HIDDEN';
-    quantity_sold: number;
-    stock_quantity: number;
-    created_at: string;
-    updated_at: string;
+    quantitySold: number;
+    stockQuantity: number;
+    createdAt: string;
+    updatedAt: string;
 };
 
 export type Category = {
-    id: number;
-    name: string;
+    categoryId: number;
+    categoryName: string;
     slug: string;
-    parent_id: number | null;
-    created_at: string;
-    updated_at: string;
+    parentId: number | null;
+    soldCount?: number;
+    createdAt: string;
+    updatedAt: string;
 };
 
 export type CartItem = {
@@ -45,56 +48,60 @@ export type PaymentMethod = 'cod' | 'bank_transfer' | 'credit_card';
 
 export type OrderItem = {
     id: number;
-    order_id: number;
-    product_id: number | null;
+    orderId: number;
+    productId: number | null;
     quantity: number;
-    price_order: number; // Giá tại thời điểm mua
+    priceOrder: number;
+    productName?: string;
+    productImage?: string;
 };
 
 export type Order = {
     id: number;
-    customer_id: number;
-    artisan_id: number;
-    chat_id: number | null;
-    total_price: number;
+    customerId: number;
+    artisanId: number;
+    chatId: number | null;
+    totalPrice: number;
     status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-    created_at: string;
-    updated_at: string;
+    createdAt: string;
+    updatedAt: string;
+    items?: OrderItem[]; 
 };
 
 export type Chat = {
     id: number;
-    customer_id: number;
-    artisan_id: number;
-    product_id: number | null;
+    customerId: number;
+    artisanId: number;
+    productId: number | null;
     title: string;
     description: string;
     budget: number;
-    reference_image: string;
+    referenceImage: string; 
     status: 'PENDING' | 'NEGOTIATING' | 'ORDER_CREATED' | 'CLOSED';
-    created_at: string;
+    createdAt: string;
 };
 
 export type ChatMessage = {
     id: number;
-    chat_id: number;
-    sender_id: number;
-    sender_type: 'CUSTOMER' | 'ARTISAN';
-    is_image: boolean;
+    chatId: number;
+    senderId: number;
+    senderType: 'CUSTOMER' | 'ARTISAN';
+    isImage: boolean; 
     type: 'TEXT' | 'IMAGE' | 'ORDER_PROPOSAL';
     content: string;
-    created_at: string;
+    createdAt: string;
 };
 
 export type User = {
     id: number;
     name: string;
     email: string;
+    role?: 'CUSTOMER' | 'ARTISAN' | 'ADMIN';
 };
 
 export type Artisan = {
     id: number;
     name: string;
     email: string;
+    role?: 'ARTISAN';
 };
-

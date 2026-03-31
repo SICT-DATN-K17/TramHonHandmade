@@ -24,7 +24,7 @@ export default function Categories() {
 
         const fetchCategories = async () => {
             try {
-                const response = await axiosClient.get<RawCategoryResponse[]>('/category');
+                const response = await axiosClient.get<RawCategoryResponse[]>('/categories');
                 const enrichedData = response.data.map(mapToEnrichedCategory);
                 const categoriesData = enrichedData.slice(0, 4);
 
@@ -51,8 +51,8 @@ export default function Categories() {
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-6">
                 {categories.map((category) => (
                     <Link
-                        key={category.id}
-                        href={`/shop/products?categoryId=${category.id}`}
+                        key={category.categoryId}
+                        href={`/shop/products?categoryId=${category.categoryId}`}
                         className="group relative block"
                     >
                         {/* Background hover effect */}
@@ -63,11 +63,11 @@ export default function Categories() {
 
                             {/* Icon Circle */}
                             <div className="w-24 h-24 rounded-full mb-4 flex items-center justify-center text-4xl transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 bg-[#F4C27A]/60">
-                                {categoryIcons[category.name] || '🎁'}
+                                {categoryIcons[category.categoryName] || '🎁'}
                             </div>
 
                             <h3 className="text-lg font-semibold group-hover:font-bold transition-all duration-300 text-[#3F2E23]">
-                                {category.name}
+                                {category.categoryName}
                             </h3>
 
                             <div className="text-sm mt-2 text-[#6B4F3E]">

@@ -1,23 +1,24 @@
 import { Product } from '@/types';
 import { RawProductResponse } from '@/types/apiTypes';
 
-
 export type ProductWithCategory = Product & { categoryName: string | null };
 
 export const mapToProduct = (rawData: RawProductResponse): Product => {
     return {
         id: rawData.id,
-        artisan_id: 1,
-        category_id: rawData.categoryId,
+        artisanId: rawData.artisanId || null,
+        artisanName: rawData.artisanName || 'Trạm Hồn', // Lấy tên shop từ Backend
+        categoryId: rawData.categoryId,
+        categoryName: rawData.categoryName || undefined,
         name: rawData.name,
-        description: rawData.description ,
+        description: rawData.description,
         price: rawData.price,
         image: rawData.image,
         status: rawData.status,
-        quantity_sold: rawData.quantitySold,
-        stock_quantity: rawData.stockQuantity,
-        created_at: rawData.createdAt,
-        updated_at: rawData.updatedAt,
+        quantitySold: rawData.quantitySold,
+        stockQuantity: rawData.stockQuantity,
+        createdAt: rawData.createdAt,
+        updatedAt: rawData.updatedAt,
     };
 };
 

@@ -30,7 +30,7 @@ export default function ResetPasswordForm({email, onSuccess, onResendCode}: Rese
 
         setIsLoading(true);
         try {
-            await axiosClient.post('/auth/reset-password' ,{
+            await axiosClient.post('/auth/reset-password/' ,{
                 email : email,
                 code : code,
                 newPassword : newPassword,

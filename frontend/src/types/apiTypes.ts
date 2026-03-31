@@ -1,5 +1,4 @@
-import useAxiosAuth from "@/hooks/useAxiosAuth";
-import {useCallback, useState} from "react";
+// Xóa bỏ các import thừa của React (useAxiosAuth, useState...)
 
 export type RawCategoryResponse = {
     categoryId: number;
@@ -10,6 +9,7 @@ export type RawCategoryResponse = {
     updatedAt: string;
     soldCount: number;
 };
+
 export interface PaginatedProductResponse {
     content: RawProductResponse[];
     size: number;
@@ -20,6 +20,8 @@ export interface PaginatedProductResponse {
 
 export type RawProductResponse = {
     id: number;
+    artisanId?: number; 
+    artisanName?: string;   
     categoryId: number | null;
     categoryName: string | null;
     name: string;
@@ -36,14 +38,16 @@ export type RawProductResponse = {
 export interface RawOrderItem {
     productName: string;
     quantity: number;
-    price: number;
-    imageUrl: string | null;
+    price?: number;
+    priceOrder?: number;
+    imageUrl?: string | null;
+    productImage?: string | null;
 }
 
 export interface RawOrderResponse {
     id: number;
-    status: string; // 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-    orderDate: string; // Backend trả về LocalDateTime, JSON sẽ là chuỗi ISO
+    status: string;
+    orderDate: string;
     totalPrice: number;
     isCustomOrder: boolean;
     note: string | null ;
@@ -56,14 +60,15 @@ export interface RawOrderDetailItem {
     productName: string;
     productImage: string;
     quantity: number;
-    price: number;
+    price?: number;
+    priceOrder?: number;
     subtotal: number;
 }
 
 export interface RawOrderDetail {
     id: number;
     chatId: number | null;
-    orderDate: string; // ISO String
+    orderDate: string;
     status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
     totalPrice: number;
     shippingFee: number;
@@ -90,7 +95,7 @@ export interface RawArtisanOrderList {
     customerName: string;
     phone: string;
     status: string;
-    createdAt: string; // ISO String
+    createdAt: string;
     subtotal: number;
     shippingFee: number;
     total: number;
@@ -100,14 +105,13 @@ export interface RawArtisanOrderList {
     items: RawArtisanOrderListItem[];
 }
 
-
 // Chat
 export interface RawChatMessage {
     id: number;
     senderId: number;
-    senderType: string; // 'CUSTOMER' | 'ARTISAN'
+    senderType: string;
     image: boolean;
-    type: string; // 'TEXT' | 'IMAGE' | 'ORDER_PROPOSAL'
+    type: string;
     message: string;
     createdAt: string;
 }
@@ -126,6 +130,7 @@ export interface RawChatArtisan {
 
 export interface RawChatProduct {
     id: number;
+    artisanId?: number;
     name: string;
     description: string | null;
     price: number;
@@ -137,7 +142,7 @@ export interface RawChatDataResponse {
     customer: RawChatCustomer;
     artisan: RawChatArtisan;
     product: RawChatProduct | null;
-    status: string; // 'PENDING','IN_PROGRESS','COMPLETED','CANCELLED'
+    status: string;
     title: string;
     description: string | null;
     budget: number | null;

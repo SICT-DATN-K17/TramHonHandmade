@@ -21,10 +21,10 @@ export default function ForgotPasswordForm({onSuccess}: ForgotPasswordFormProps)
 
         try {
 
-            const response = await axiosClient.post('/auth/forgot-password', {email});
+            const response = await axiosClient.post('/auth/forgot-password/', {email});
 
             console.log(response);
-            setMessage(response.data);
+            setMessage(response.data.message || 'Đã gửi mã xác nhận');
             // Chờ một chút để người dùng đọc thông báo rồi mới chuyển trang
             setTimeout(() => {
                 onSuccess(email);

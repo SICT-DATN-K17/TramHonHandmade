@@ -24,7 +24,7 @@ export default function VerificationCodeForm({ email, onVerifySuccess, onBack }:
 
     try {
       // --- Call API Verify ---
-      const response = await axiosClient.post('/auth/verify-account', {
+      const response = await axiosClient.post('/auth/verify-account/', {
         email: email,
         code: code,
       });

@@ -31,14 +31,14 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
-        ('USER', 'Customer'),
+        ('CUSTOMER', 'Customer'),
         ('ARTISAN', 'Artisan'),
         ('ADMIN', 'Admin'),
     ]
     
     name = models.CharField(max_length=100, unique=True)
     email = models.EmailField(unique=True)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='USER')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='CUSTOMER')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
