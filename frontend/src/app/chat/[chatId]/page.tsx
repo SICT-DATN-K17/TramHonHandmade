@@ -1,39 +1,31 @@
 'use client';
 
-import {useState, useEffect, useRef, useCallback} from 'react';
-import {useParams, useRouter} from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import {toast} from 'react-hot-toast';
-import {useSession} from 'next-auth/react';
+import { toast } from 'react-hot-toast';
+import { useSession } from 'next-auth/react';
 import Header from '@/components/common/Header';
-import Footer from '@/components/common/Footer';
-import {Button} from '@/components/ui/button';
-import {Input} from '@/components/ui/input';
-import {Client} from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
-import type {Chat, ChatMessage, Artisan, User} from '@/types';
-import type {RawChatDataResponse, RawChatMessage} from '@/types/apiTypes';
-import {mapChatDetails, mapToChatMessage} from '@/utils/chatMapper';
+// Đã xóa import Footer thừa
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+// Đã bổ sung MessageSquare vào đây
+import { ArrowLeft, Store, Upload, X, Loader2, Send, MessageSquare } from 'lucide-react';
+import type { Chat, ChatMessage, Artisan, User } from '@/types';
+import type { RawChatDataResponse, RawChatMessage } from '@/types/apiTypes';
+import { mapChatDetails, mapToChatMessage } from '@/utils/chatMapper';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
-import {ProductWithCategory} from "@/utils/ProductMapper";
-import {isProductOutOfStock} from "@/lib/inventory";
+import { isProductOutOfStock } from "@/lib/inventory";
 import { useCart } from '@/contexts/CartContext';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 
 const API_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-
-
-
-// Chuẩn hóa URL ảnh (Cloudinary bị ghép đôi / scheme https:/ thiếu dấu /)
 const normalizeChatImageUrl = (raw: string): string => {
     let s = raw.trim();
-    // .../image/upload/v123/https:/res.cloudinary.com/cloud/chat/file.png -> .../image/upload/v123/chat/file.png
     const junkInPath =
-        /^(https:\/\/res\.cloudinary\.com\/[^/]+\/)image\/upload\/(v\d+\/)?https:\/+res\.cloudinary\.com\/[^/]+\/(.+)$/.exec(
-            s
-        );
+        /^(https:\/\/res\.cloudinary\.com\/[^/]+\/)image\/upload\/(v\d+\/)?https:\/+res\.cloudinary\.com\/[^/]+\/(.+)$/.exec(s);
     if (junkInPath) {
         s = `${junkInPath[1]}image/upload/${junkInPath[2] || ''}${junkInPath[3]}`;
     }
@@ -54,28 +46,25 @@ const normalizeChatImageUrl = (raw: string): string => {
     return s;
 };
 
-// Helper function để lấy full URL
 const getFullImageUrl = (path: string | null | undefined) => {
     if (!path) return '';
     const normalized = normalizeChatImageUrl(String(path));
     if (normalized.startsWith('http')) return normalized;
-    // Prepend /uploads/ if path doesn't have it (for media files from backend)
     const normalizedPath = normalized.startsWith('/uploads/')
         ? normalized
         : `/uploads/${normalized.replace(/^\/+/, '')}`;
     return `${API_URL}${normalizedPath}`;
 };
 
-// Helper format tiền tệ
 const formatCurrency = (amount: number | string | undefined) => {
     if (!amount) return 'Thỏa thuận';
     const num = Number(amount);
     if (isNaN(num)) return 'Thỏa thuận';
-    return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(num);
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
 };
 
 export default function ChatPage() {
-    const {data: session} = useSession();
+    const { data: session } = useSession();
     const axiosAuth = useAxiosAuth();
     const params = useParams();
     const router = useRouter();
@@ -96,10 +85,10 @@ export default function ChatPage() {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const stompClientRef = useRef<Client | null>(null);
+    const wsRef = useRef<WebSocket | null>(null);
 
     const scrollToBottom = useCallback(() => {
-        messagesEndRef.current?.scrollIntoView({behavior: 'smooth'});
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, []);
 
     useEffect(() => {
@@ -121,8 +110,6 @@ export default function ChatPage() {
                 setMessages(mappedData.messages);
                 setArtisan(mappedData.artisan);
                 setCurrentUser(mappedData.customer);
-
-                console.log( mappedData)
             } catch (error) {
                 toast.error('Có lỗi xảy ra khi tải dữ liệu');
                 console.error(error);
@@ -132,67 +119,44 @@ export default function ChatPage() {
         };
 
         loadChatData();
-    }, [chatId]);
+    }, [chatId, axiosAuth]);
 
     useEffect(() => {
-        if (!chatId) {
-            console.log('[WS] Skipping: no chatId');
-            return;
-        }
-        
-        if (!session?.user?.apiAccessToken) {
-            console.log('[WS] Skipping: no token yet');
-            return;
-        }
+        if (!chatId || !session?.user?.apiAccessToken) return;
 
-        // Use native WebSocket to connect directly to ASGI consumer
         const token = session.user.apiAccessToken;
         const wsProtocol = API_URL.startsWith('https') ? 'wss' : 'ws';
         const wsUrl = `${wsProtocol}://${(API_URL.replace(/^https?:\/\//, '')).replace(/\/$/, '')}/ws/chat/${chatId}/?token=${token}`;
-        
-        console.log('[WS] Attempting to connect to', wsUrl);
-        let reconnectTimeout: NodeJS.Timeout;
+
+        let reconnectTimeout: NodeJS.Timeout | undefined;
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-            console.log('[WS] Customer WebSocket connected');
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
         };
 
         ws.onmessage = (ev) => {
-            console.log('[WS] Message received. Raw data:', ev.data);
             try {
                 const rawMsg: RawChatMessage = JSON.parse(ev.data);
-                console.log('[WS] Parsed message:', rawMsg);
                 const newMsg = mapToChatMessage(rawMsg, chatId);
-                console.log('[WS] Mapped message:', newMsg);
                 setMessages((prev) => {
                     const exists = prev.some(m => m.id === newMsg.id);
-                    console.log(`[WS] Checking dedup: message id=${newMsg.id}, exists=${exists}`);
-                    if (exists) {
-                        console.log('[WS] Message already exists, skipping');
-                        return prev;
-                    }
-                    console.log('[WS] Adding new message to state');
+                    if (exists) return prev;
                     return [...prev, newMsg];
                 });
                 setTimeout(() => {
-                    messagesEndRef.current?.scrollIntoView({behavior: 'smooth'});
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                 }, 100);
             } catch (e) {
-                console.error('[WS] Lỗi parse tin nhắn socket:', e, 'Raw:', ev.data);
+                console.error('[WS] Lỗi parse tin nhắn socket:', e);
             }
         };
-        
-        ws.onclose = () => {
-            console.log('[WS] Customer WebSocket closed');
-        };
 
-        stompClientRef.current = ws as any;
+        wsRef.current = ws;
 
         return () => {
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            try { ws.close(); } catch(e) {}
+            try { ws.close(); } catch { }
         };
     }, [chatId, session?.user?.apiAccessToken]);
 
@@ -221,43 +185,31 @@ export default function ChatPage() {
     const handleSendMessage = async () => {
         if ((!messageText.trim() && !selectedFile) || !chat || !currentUser) return;
 
-
-
         setSending(true);
         const sendToast = toast.loading('Đang gửi...');
 
         try {
             let imageUrl: string | null = null;
 
-            // 1. Upload ảnh lên Cloudinary nếu có
             if (selectedFile) {
                 toast.loading('Đang tải ảnh lên...', { id: sendToast });
-                try {
-                    imageUrl = await uploadToCloudinary(selectedFile, 'chat');
-                } catch {
-                    throw new Error('Lỗi khi tải ảnh lên. Vui lòng thử lại.');
-                }
+                imageUrl = await uploadToCloudinary(selectedFile, 'chat');
             }
 
-            // 2. Chuẩn bị payload dạng JSON
             toast.loading('Đang gửi tin nhắn...', { id: sendToast });
             const payload = {
                 message: messageText.trim(),
-                image: imageUrl, // Gửi URL ảnh hoặc null
+                image: imageUrl,
             };
 
-            // 3. Gửi đến backend
             await axiosAuth.post(`/chat/${chatId}/send-message/`, payload);
 
-            // Xóa input sau khi gửi thành công (lắng nghe qua WebSocket)
             setMessageText('');
             removeImagePreview();
-
-            toast.dismiss(sendToast); // Ẩn toast loading sau khi xong
-            // Không cần toast success vì tin nhắn sẽ tự xuất hiện qua WS
-
+            toast.dismiss(sendToast);
         } catch (error) {
-            const errorMessage = (error as Error)?.message || 'Gửi tin nhắn thất bại. Vui lòng thử lại.';
+            const err = error as { message?: string };
+            const errorMessage = err.message || 'Gửi tin nhắn thất bại. Vui lòng thử lại.';
             toast.error(errorMessage, { id: sendToast });
             console.error('Send message error:', error);
         } finally {
@@ -265,26 +217,29 @@ export default function ChatPage() {
         }
     };
 
-    const handleBuyNow = (e: React.MouseEvent, product: ProductWithCategory) => {
+    // Đã thay 'any' bằng Record<string, unknown> để làm hài lòng ESLint
+    const handleBuyNow = (e: React.MouseEvent, product: Record<string, any>) => {
         e.preventDefault();
         e.stopPropagation();
 
-        console.log(product);
+        if (!product) return;
 
-        if (isProductOutOfStock(product)) {
+        const productToCheck = { ...product, stockQuantity: product.stockQuantity || 1 } as any;
+
+        if (isProductOutOfStock(productToCheck)) {
             toast.error('Sản phẩm đã hết hàng');
             return;
         }
 
-
         buyNow({
-            id: product.id,
-            productName: product.name,
-            price: product.price,
-            image: product.image || '/tramhon-logo.png',
-            stockQuantity: product.stock_quantity,
+            id: product.id as number,
+            productName: (product.name as string) || 'Sản phẩm Custom',
+            price: (product.price as number) || 0,
+            image: (product.image as string) || '/tramhon-logo.png',
+            stockQuantity: (product.stockQuantity as number) || 1,
             quantity: 1,
-            chatId: chatId
+            chatId: chatId,
+            artisanId: artisan?.id || undefined
         });
 
         router.push('/checkout');
@@ -300,182 +255,154 @@ export default function ChatPage() {
     const isChatClosed = chat?.status === 'CLOSED';
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]">
             <div className="animate-pulse flex flex-col items-center">
-                <div className="h-4 w-4 bg-gray-300 rounded-full mb-2"></div>
-                <div>Đang tải...</div>
+                <Loader2 className="h-10 w-10 animate-spin text-[#D96C39] mb-4" />
+                <div className="text-[#6B4F3E] font-medium">Đang tải...</div>
             </div>
         </div>
     );
 
     if (!chat) return null;
 
-    const hasReferenceImage = !!chat.reference_image;
+    const hasReferenceImage = !!chat.referenceImage;
 
     return (
-        <div className="min-h-screen font-sans text-gray-800 bg-white flex flex-col">
-            <Header/>
+        <div className="min-h-screen font-sans text-gray-800 bg-[#FDFBF7] flex flex-col">
+            <Header />
 
             <main className="flex-1 flex flex-col container mx-auto px-4 py-6 max-w-4xl h-[calc(100vh-140px)]">
 
                 {/* -------------------- HEADER CHAT -------------------- */}
-                <div className="bg-white border-b border-gray-200 pb-4 mb-4 flex-shrink-0">
-                    <div className="flex items-start justify-between mb-4">
+                <div className="bg-white rounded-2xl border border-[#E8D5B5] p-5 shadow-sm mb-6 flex-shrink-0">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+
+                        {/* Info Left */}
                         <div className="flex items-start gap-4">
-                            <Link href={`/custom-request/`} className="text-gray-600 hover:text-[#0f172a] mt-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none"
-                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                          d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                                </svg>
+                            <Link href={`/custom-request/`} className="text-[#6B4F3E] hover:text-[#D96C39] transition-colors mt-2 p-1.5 bg-[#FFF8F0] rounded-full hover:bg-[#F7F1E8]">
+                                <ArrowLeft size={20} />
                             </Link>
-                            <div>
-                                {/* SỬA CHỖ NÀY: Hiển thị tên Artisan thay vì chat.title */}
-                                <h1 className="text-xl font-bold flex flex-wrap items-center gap-2 text-[#0f172a]">
-                                    {artisan?.name || 'Nghệ nhân'} 
-                                    <span
-                                        className="text-xs font-normal px-2 py-0.5 bg-gray-100 rounded-full text-gray-500 border border-gray-200">
-                                        ID: {chatId}
-                                    </span>
-                                </h1>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <div
-                                        className={`w-2 h-2 rounded-full ${isChatClosed ? 'bg-gray-400' : 'bg-green-500 animate-pulse'}`}/>
-                                    <span className="text-sm font-medium text-gray-600">
-                                        {isChatClosed ? 'Đã đóng' : 'Đang hoạt động'}
-                                    </span>
-                                    {/* SỬA CHỖ NÀY: Hiển thị tiêu đề chat ở dạng sub-title cho rõ ràng */}
-                                    <span className="text-sm text-gray-400 ml-2 hidden sm:inline">
-                                        | {chat.title}
-                                    </span>
+
+                            <div className="flex gap-4">
+                                {/* Avatar */}
+                                <div className="w-14 h-14 rounded-full bg-[#FFF8F0] border-2 border-[#D96C39] shadow-sm flex items-center justify-center text-xl font-bold text-[#D96C39] flex-shrink-0">
+                                    {artisan?.name?.charAt(0).toUpperCase() || 'A'}
+                                </div>
+
+                                {/* Text Info */}
+                                <div className="flex flex-col justify-center">
+                                    <h1 className="text-xl font-bold text-[#3F2E23] flex items-center gap-2 mb-1">
+                                        {artisan?.name || 'Nghệ nhân'}
+                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-[#FFF8F0] border border-[#E8D5B5] text-[#D96C39] rounded-md tracking-wider uppercase">
+                                            Gian hàng
+                                        </span>
+                                    </h1>
+                                    <p className="text-sm font-medium text-[#6B4F3E] flex items-center gap-2">
+                                        {chat.title}
+                                        <span className="opacity-50">•</span>
+                                        <span className="text-xs">ID Yêu cầu: #{chatId}</span>
+                                    </p>
                                 </div>
                             </div>
                         </div>
+
+                        {/* Action Right (Ghé thăm gian hàng) */}
+                        <div className="flex items-center self-start md:self-center ml-12 md:ml-0">
+                            {artisan?.id && (
+                                <Link href={`/shop/artisan/${artisan.id}`}>
+                                    <Button variant="outline" className="h-10 rounded-full border-[#D96C39] text-[#D96C39] hover:bg-[#D96C39] hover:text-white transition-colors flex items-center gap-2 text-sm font-semibold px-5">
+                                        <Store size={16} />
+                                        Xem gian hàng
+                                    </Button>
+                                </Link>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm shadow-sm">
-                        <div className="flex flex-col md:flex-row gap-6">
-
-                            {/* --- CỘT 1: ẢNH THAM KHẢO --- */}
-                            {hasReferenceImage && (
-                                <div className="md:w-64 flex-shrink-0">
-                                    <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500"
-                                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                        </svg>
-                                        Ảnh tham khảo:
-                                    </h3>
-                                    <div
-                                        className="relative w-full h-40 md:h-44 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm group">
-                                        {/* @ts-ignore */}
-                                        <Image
-                                            src={getFullImageUrl(chat.reference_image)}
-                                            alt="Reference Image"
-                                            fill
-                                            className="object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
-                                            onClick={() => window.open(getFullImageUrl(chat.reference_image), '_blank')}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* --- CỘT 2: MÔ TẢ & NGÂN SÁCH --- */}
-                            <div
-                                className={`flex-1 flex flex-col justify-between gap-4 ${hasReferenceImage ? 'md:border-l md:border-gray-200 md:pl-6' : ''}`}>
-                                <div>
-                                    <h3 className="font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500"
-                                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M4 6h16M4 12h16M4 18h7"/>
-                                        </svg>
-                                        Mô tả yêu cầu:
-                                    </h3>
-                                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap line-clamp-4 hover:line-clamp-none transition-all">
-                                        {chat.description || "Không có mô tả chi tiết."}
-                                    </p>
-                                </div>
-
-                                <div
-                                    className="flex items-center justify-between md:justify-end border-t pt-3 md:border-t-0 md:pt-0">
-                                    <h3 className="font-semibold text-gray-700 flex items-center gap-1 mr-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500"
-                                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                        </svg>
-                                        <span className="md:hidden">Ngân sách:</span>
-                                        <span className="hidden md:inline">Ngân sách mong muốn:</span>
-                                    </h3>
-                                    <div
-                                        className="text-base font-bold text-green-600 bg-green-50 px-3 py-1 rounded-lg border border-green-100">
-                                        {/* @ts-ignore */}
-                                        {formatCurrency(chat.budget)}
-                                    </div>
-                                </div>
+                    {/* Meta Detail Box */}
+                    <div className="mt-5 pt-4 border-t border-[#E8D5B5] flex flex-col md:flex-row gap-6">
+                        {hasReferenceImage && (
+                            <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-[#E8D5B5] shadow-sm flex-shrink-0">
+                                <Image
+                                    src={getFullImageUrl(chat.referenceImage)}
+                                    alt="Reference Image"
+                                    fill
+                                    className="object-cover cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => window.open(getFullImageUrl(chat.referenceImage), '_blank')}
+                                />
                             </div>
-
+                        )}
+                        <div className="flex-1">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-[#6B4F3E] mb-1">Mô tả yêu cầu</h3>
+                            <p className="text-sm text-[#3F2E23] leading-relaxed line-clamp-2 hover:line-clamp-none transition-all">
+                                {chat.description || "Không có chi tiết."}
+                            </p>
+                        </div>
+                        <div className="md:border-l border-[#E8D5B5] md:pl-6 flex-shrink-0">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-[#6B4F3E] mb-1">Ngân sách dự kiến</h3>
+                            <p className="text-lg font-extrabold text-[#D96C39]">{formatCurrency(chat.budget)}</p>
                         </div>
                     </div>
                 </div>
                 {/* -------------------- END HEADER CHAT -------------------- */}
 
                 {/* List Tin Nhắn */}
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4 px-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto space-y-5 mb-4 px-2 custom-scrollbar">
                     {messages.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-gray-400 flex-col">
-                            <p>Chưa có tin nhắn nào. Hãy bắt đầu!</p>
+                        <div className="h-full flex items-center justify-center text-[#6B4F3E] flex-col opacity-60">
+                            <MessageSquare size={48} className="mb-4 text-[#E8D5B5]" />
+                            <p className="font-medium">Chưa có tin nhắn nào. Hãy bắt đầu thương lượng!</p>
                         </div>
                     ) : (
 
                         messages.map((message) => {
-                            const isCustomer = message.sender_type === 'CUSTOMER';
-                            const isMe = isCustomer && message.sender_id === currentUser?.id;
+                            const isCustomer = message.senderType === 'CUSTOMER';
+                            const isMe = isCustomer && message.senderId === currentUser?.id;
 
-                            // Logic xử lý riêng cho ORDER_PROPOSAL
                             if (message.type === 'ORDER_PROPOSAL') {
-                                // ... (Giữ nguyên đoạn code render Proposal) ...
-                                let proposalData = null;
-                                try {
-                                    proposalData = JSON.parse(message.content);
-                                } catch (e) {
-                                    console.error("Lỗi parse proposal data", e);
-                                }
+                                // Đã thay 'any' bằng Record<string, any>
+                                let proposalData: Record<string, any> | null = null;
+                                const safeParseJSON = (str: string) => {
+                                    if (typeof str === 'object' && str !== null) return str;
+                                    if (!str) return {};
+                                    let cleaned = str.trim();
+                                    if (!cleaned.startsWith('{')) cleaned = `{${cleaned}}`;
+                                    try { return JSON.parse(cleaned); }
+                                    catch {
+                                        try {
+                                            const fixedJSON = cleaned.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":');
+                                            return JSON.parse(fixedJSON);
+                                        } catch { return null; }
+                                    }
+                                };
+
+                                proposalData = safeParseJSON(message.content);
 
                                 return (
-                                    <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in zoom-in-95 duration-200 mb-4`}>
-                                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[85%] md:max-w-[60%]`}>
-                                            {/* Thêm Avatar Nghệ nhân gửi Proposal */}
+                                    <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in zoom-in-95 duration-200 mb-6`}>
+                                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%] lg:max-w-[50%]`}>
                                             {!isMe && (
-                                                <div className="flex items-end gap-2 mb-1">
-                                                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-slate-100 text-slate-700 border border-slate-200">
-                                                        {artisan?.name?.charAt(0) || 'A'}
+                                                <div className="flex items-center gap-2 mb-2 ml-1">
+                                                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-[#FFF8F0] text-[#D96C39] border border-[#D96C39]">
+                                                        {artisan?.name?.charAt(0).toUpperCase() || 'A'}
                                                     </div>
-                                                    <span className="text-[10px] text-gray-500">{artisan?.name}</span>
+                                                    <span className="text-xs font-bold text-[#6B4F3E]">{artisan?.name}</span>
                                                 </div>
                                             )}
 
-                                            <div className="bg-white border-2 border-yellow-400 rounded-xl overflow-hidden shadow-md w-full">
-                                                {/* Header của thẻ đề xuất */}
-                                                <div className="bg-yellow-50 px-4 py-2 border-b border-yellow-200 flex items-center justify-between">
-                                                    <span className="text-xs font-bold text-yellow-800 uppercase tracking-wider flex items-center gap-1">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none"
-                                                            viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                                                        </svg>
-                                                        Đề xuất đơn hàng
+                                            <div className="bg-white border border-[#E8D5B5] rounded-2xl overflow-hidden shadow-md w-full relative">
+                                                {/* Header Proposal */}
+                                                <div className="bg-gradient-to-r from-[#D96C39] to-orange-500 px-5 py-3 flex items-center justify-between">
+                                                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                                        <Store size={14} />
+                                                        Gian hàng gửi báo giá
                                                     </span>
                                                 </div>
 
-                                                {/* Nội dung đơn hàng */}
-                                                <div className="p-4">
-                                                    <div className="flex gap-4">
-                                                        {/* Ảnh sản phẩm (nếu có) */}
-                                                        {proposalData?.image && (
-                                                            <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-100">
+                                                <div className="p-5">
+                                                    <div className="flex gap-4 items-center mb-4 pb-4 border-b border-gray-100">
+                                                        {proposalData?.image ? (
+                                                            <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-[#E8D5B5] flex-shrink-0 bg-[#F7F1E8] shadow-sm">
                                                                 <Image
                                                                     src={getFullImageUrl(proposalData.image)}
                                                                     alt="Product"
@@ -483,44 +410,50 @@ export default function ChatPage() {
                                                                     className="object-cover"
                                                                 />
                                                             </div>
+                                                        ) : (
+                                                            <div className="w-20 h-20 rounded-xl border border-[#E8D5B5] flex-shrink-0 bg-[#F7F1E8] flex items-center justify-center shadow-sm">
+                                                                <Store className="text-[#E8D5B5]" size={32} />
+                                                            </div>
                                                         )}
 
-                                                        <div className="flex flex-col justify-between">
-                                                            <div>
-                                                                <h4 className="font-semibold text-gray-800 text-sm line-clamp-2">
-                                                                    {proposalData?.productName || "Sản phẩm thủ công theo yêu cầu"}
-                                                                </h4>
-                                                                <p className="text-xs text-gray-500 mt-1">
-                                                                    Mô tả: {proposalData?.description || "N/A"}
-                                                                </p>
-                                                            </div>
-                                                            <div className="text-red-600 font-bold text-lg mt-1">
+                                                        <div className="flex flex-col justify-center">
+                                                            <h4 className="font-bold text-[#3F2E23] text-base line-clamp-2 leading-tight">
+                                                                {proposalData?.name || "Sản phẩm thủ công theo yêu cầu"}
+                                                            </h4>
+                                                            <div className="text-[#D96C39] font-extrabold text-xl mt-2">
                                                                 {formatCurrency(proposalData?.price || 0)}
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    {!isChatClosed && (
-                                                        <div className="mt-4 pt-3 border-t border-gray-100">
-                                                            <Button
-                                                                className="w-full bg-[#0f172a] hover:bg-slate-800 text-white font-medium py-2 rounded-lg transition-all shadow-sm hover:shadow active:scale-95"
-                                                                onClick={(e) => handleBuyNow(e, proposalData)}
-                                                            >
-                                                                Thanh toán ngay
-                                                            </Button>
+                                                    {proposalData?.description && (
+                                                        <div className="bg-[#FFF8F0] p-3 rounded-lg border border-[#E8D5B5]/50 mb-4">
+                                                            {/* Đã sửa lỗi Unescaped entities */}
+                                                            <p className="text-xs text-[#6B4F3E] italic line-clamp-3">
+                                                                &quot;{proposalData.description}&quot;
+                                                            </p>
                                                         </div>
                                                     )}
 
+                                                    {!isChatClosed && (
+                                                        <Button
+                                                            className="w-full bg-[#3F2E23] hover:bg-black text-white font-bold py-6 rounded-xl transition-all shadow-sm hover:shadow-md"
+                                                            onClick={(e) => handleBuyNow(e, proposalData as Record<string, any>)}
+                                                        >
+                                                            Thanh toán ngay để chốt đơn
+                                                        </Button>
+                                                    )}
+
                                                     {isChatClosed && (
-                                                        <div className="mt-4 pt-3 border-t border-gray-100 text-center text-xs text-gray-500 italic">
-                                                            Đơn hàng đã được xử lý hoặc hủy bỏ
+                                                        <div className="text-center text-xs font-bold text-red-500 bg-red-50 py-2 rounded-lg border border-red-100">
+                                                            Phiên này đã đóng / Đơn đã chốt
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            <span className="text-[10px] text-gray-400 mt-1 px-1">
-                                                {new Date(message.created_at).toLocaleTimeString('vi-VN', {
+                                            <span className="text-[10px] text-gray-400 mt-2 px-2 font-medium">
+                                                {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
                                                     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                                                 })}
                                             </span>
@@ -529,41 +462,33 @@ export default function ChatPage() {
                                 );
                             }
 
-                            // Logic cũ cho tin nhắn thường và ảnh
                             return (
-                                <div key={message.id}
-                                     className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in zoom-in-95 duration-200`}>
-                                    <div
-                                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
-                                        
-                                        {/* SỬA CHỖ NÀY: Hiển thị Avatar Artisan nhỏ ở trên tin nhắn */}
+                                <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in zoom-in-95 duration-200 mb-2`}>
+                                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
+
                                         {!isMe && (
-                                            <div className="flex items-end gap-2 mb-1">
-                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-slate-100 text-slate-700 border border-slate-200">
-                                                    {artisan?.name?.charAt(0) || 'A'}
+                                            <div className="flex items-center gap-2 mb-1.5 ml-1">
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 bg-[#FFF8F0] text-[#D96C39] border border-[#D96C39]">
+                                                    {artisan?.name?.charAt(0).toUpperCase() || 'A'}
                                                 </div>
-                                                <span className="text-[10px] text-gray-500">{artisan?.name}</span>
+                                                <span className="text-[11px] font-bold text-[#6B4F3E]">{artisan?.name}</span>
                                             </div>
                                         )}
 
                                         <div
-                                            className={`rounded-2xl px-4 py-2 shadow-sm ${isMe ? 'bg-[#0f172a] text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none'}`}>
-                                            {message.is_image ? (
-                                                <div
-                                                    className="relative w-full min-w-[200px] h-48 rounded-lg overflow-hidden mb-2 bg-gray-300">
+                                            className={`rounded-2xl px-5 py-3 shadow-sm text-sm ${isMe ? 'bg-[#3F2E23] text-white rounded-br-sm' : 'bg-white border border-[#E8D5B5] text-[#3F2E23] rounded-bl-sm'}`}>
+                                            {message.isImage ? (
+                                                <div className="relative w-full min-w-[200px] h-52 rounded-xl overflow-hidden border border-black/10">
                                                     <Image src={getFullImageUrl(message.content)}
-                                                           alt="Message image" fill className="object-cover"
-                                                           onClick={() => window.open(getFullImageUrl(message.content), '_blank')}/>
+                                                        alt="Message image" fill className="object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        onClick={() => window.open(getFullImageUrl(message.content), '_blank')} />
                                                 </div>
                                             ) : (
-                                                <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+                                                <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
                                             )}
                                         </div>
-                                        <span className="text-[10px] text-gray-400 mt-1 px-1">
-                                            {new Date(message.created_at).toLocaleTimeString('vi-VN', {
-                                                day: '2-digit',
-                                                month: '2-digit',
-                                                year: 'numeric',
+                                        <span className="text-[10px] text-gray-400 mt-1 px-1 font-medium">
+                                            {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
                                                 hour: '2-digit',
                                                 minute: '2-digit'
                                             })}
@@ -574,63 +499,54 @@ export default function ChatPage() {
                         })
 
                     )}
-                    <div ref={messagesEndRef}/>
+                    <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area (Giữ nguyên) */}
-                <div className="border-t border-gray-200 pt-4 bg-white flex-shrink-0">
+                {/* Input Area */}
+                <div className="border-t border-[#E8D5B5] pt-4 flex-shrink-0 bg-[#FDFBF7]">
                     {isChatClosed ? (
-                        <div
-                            className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-gray-500 text-sm">Cuộc
-                            trò chuyện này đã kết thúc.</div>
+                        <div className="bg-[#FFF8F0] border border-[#E8D5B5] rounded-xl p-4 text-center text-[#D96C39] text-sm font-bold flex items-center justify-center gap-2">
+                            <X size={18} /> Phiên trò chuyện này đã kết thúc.
+                        </div>
                     ) : (
-                        <>
+                        <div className="bg-white p-2 rounded-2xl border border-[#E8D5B5] shadow-sm">
                             {imagePreview && (
-                                <div className="relative mb-2 inline-block">
-                                    <div
-                                        className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
-                                        <Image src={imagePreview} alt="Preview" fill className="object-cover"/>
+                                <div className="relative mb-3 inline-block ml-2 mt-2">
+                                    <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-[#D96C39] shadow-sm">
+                                        <Image src={imagePreview} alt="Preview" fill className="object-cover" />
                                     </div>
                                     <button onClick={removeImagePreview}
-                                            className="absolute -top-2 -right-2 bg-gray-800 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center hover:bg-red-500 text-xs shadow-sm">✕
+                                        className="absolute -top-2 -right-2 bg-white text-red-500 rounded-full p-1 w-6 h-6 flex items-center justify-center hover:bg-red-50 border border-red-100 shadow-sm transition-colors">
+                                        <X size={14} />
                                     </button>
                                 </div>
                             )}
+
                             <div className="flex gap-2 items-end">
-                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect}
-                                       className="hidden" disabled={sending}/>
-                                <Button type="button" variant="outline" size="icon"
-                                        onClick={() => fileInputRef.current?.click()} disabled={sending}
-                                        className="rounded-full shrink-0">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500"
-                                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                    </svg>
+                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" disabled={sending} />
+                                <Button type="button" variant="ghost" size="icon"
+                                    onClick={() => fileInputRef.current?.click()} disabled={sending}
+                                    className="rounded-xl shrink-0 h-12 w-12 text-[#6B4F3E] hover:bg-[#FFF8F0] hover:text-[#D96C39]">
+                                    <Upload size={22} />
                                 </Button>
+
                                 <div className="flex-1 relative">
                                     <Input type="text" value={messageText}
-                                           onChange={(e) => setMessageText(e.target.value)} onKeyPress={handleKeyPress}
-                                           placeholder="Nhập tin nhắn..." disabled={sending}
-                                           className="rounded-full pr-10 focus-visible:ring-slate-900"/>
+                                        onChange={(e) => setMessageText(e.target.value)} onKeyPress={handleKeyPress}
+                                        placeholder="Nhắn tin cho gian hàng..." disabled={sending}
+                                        className="rounded-xl h-12 border-none bg-gray-50 focus-visible:ring-0 focus-visible:ring-offset-0 px-4 text-[#3F2E23] placeholder:text-gray-400 font-medium" />
                                 </div>
+
                                 <Button type="button" onClick={handleSendMessage}
-                                        disabled={sending || (!messageText.trim() && !imagePreview)}
-                                        className="bg-[#0f172a] text-white hover:bg-slate-800 rounded-full w-10 h-10 p-0 shrink-0">
-                                    {sending ? <div
-                                            className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"/> :
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-0.5"
-                                             viewBox="0 0 20 20" fill="currentColor">
-                                            <path
-                                                d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-                                        </svg>}
+                                    disabled={sending || (!messageText.trim() && !imagePreview)}
+                                    className="bg-[#D96C39] text-white hover:bg-[#C25B2D] rounded-xl h-12 w-12 p-0 shrink-0 shadow-sm transition-colors">
+                                    {sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send size={20} className="ml-1" />}
                                 </Button>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             </main>
-            <Footer/>
         </div>
     );
 }

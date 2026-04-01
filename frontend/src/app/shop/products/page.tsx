@@ -9,7 +9,6 @@ import { ShoppingCart, CreditCard, Store } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useCart } from '@/contexts/CartContext';
 
-// --- Type Definitions ---
 import { EnrichedCategory, mapToEnrichedCategory } from '@/utils/CategoryMapper';
 import { RawCategoryResponse, PaginatedProductResponse } from '@/types/apiTypes';
 import { isProductOutOfStock, getStockStatusText } from '@/lib/inventory';
@@ -48,19 +47,16 @@ function ProductsPageContent() {
     const pathname = usePathname();
     const { addItem, buyNow } = useCart();
 
-    // 1. Lấy giá trị từ URL làm giá trị khởi tạo
     const categoryIdParam = searchParams.get('categoryId') || 'all';
     const pageParam = parseInt(searchParams.get('page') || '1', 10);
     const priceRangeParam = searchParams.get('priceRange') || 'all';
     const sortParam = searchParams.get('sort') || 'featured';
     const keywordParam = searchParams.get('keyword') || '';
 
-    // 2. Local State
     const [products, setProducts] = useState<ProductWithCategory[]>([]);
     const [categories, setCategories] = useState<EnrichedCategory[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // State UI input
     const [searchTerm, setSearchTerm] = useState(keywordParam);
     const [totalItems, setTotalItems] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
@@ -68,7 +64,6 @@ function ProductsPageContent() {
     const pageSize = 24;
     const safePage = Math.max(0, pageParam - 1);
 
-    // 3. Debounce Search
     useEffect(() => {
         const timer = setTimeout(() => {
             if (searchTerm !== keywordParam) {
@@ -86,7 +81,6 @@ function ProductsPageContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [keywordParam]);
 
-    // 4. Hàm cập nhật URL trung tâm
     const updateUrlParams = useCallback((newParams: Record<string, string>) => {
         const current = new URLSearchParams(Array.from(searchParams.entries()));
 
@@ -105,15 +99,12 @@ function ProductsPageContent() {
         router.push(`${pathname}${query}`, { scroll: false });
     }, [searchParams, router, pathname]);
 
-    // 5. Fetch Data Effect 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
                 if (categories.length === 0) {
-                    // 👉 FIX: Thêm '/' vào URL
                     const categoriesRes = await axiosClient.get<RawCategoryResponse[]>('/categories/');
-                    // Xử lý đề phòng backend bọc mảng trong content
                     const catData = Array.isArray(categoriesRes.data) ? categoriesRes.data : (categoriesRes.data as any).content || [];
                     setCategories(catData.map(mapToEnrichedCategory));
                 }
@@ -135,7 +126,6 @@ function ProductsPageContent() {
 
                 if (sortParam !== 'featured') params.set('sort', sortParam);
 
-                // 👉 FIX: Thêm '/' vào URL
                 const pagedResponse = await axiosClient.get<PaginatedProductResponse>('/products/', { params });
                 const productData = pagedResponse.data;
 
@@ -156,8 +146,6 @@ function ProductsPageContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [categoryIdParam, pageParam, priceRangeParam, sortParam, keywordParam]);
 
-
-    // Event Handlers
     const handleAddToCart = (e: React.MouseEvent, product: ProductWithCategory) => {
         e.preventDefault();
         e.stopPropagation();
@@ -174,7 +162,7 @@ function ProductsPageContent() {
             image: product.image || '/tramhon-logo.png',
             stockQuantity: product.stockQuantity,
             quantity: 1,
-            artisanId: product.artisanId || undefined // Bổ sung cho giỏ hàng
+            artisanId: product.artisanId || undefined
         });
 
         toast.success('Đã thêm vào giỏ hàng!');
@@ -245,7 +233,6 @@ function ProductsPageContent() {
             {/* Category Filter */}
             <div className="mb-10">
                 <div className="flex flex-wrap gap-3 justify-center">
-                    {/* 👉 FIX: Object ảo cho nút "Tất cả" phải dùng categoryId và categoryName */}
                     {[{ categoryId: 'all', categoryName: 'Tất cả' } as any, ...categories].map((category) => {
                         const isSelected = category.categoryId.toString() === categoryIdParam.toString();
                         return (
@@ -271,7 +258,6 @@ function ProductsPageContent() {
 
             {/* Filter & Sort Section */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                {/* Price Range Filter */}
                 <div className="md:col-span-1">
                     <div className="rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300"
                         style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
@@ -301,9 +287,7 @@ function ProductsPageContent() {
                     </div>
                 </div>
 
-                {/* Products Grid + Sort */}
                 <div className="md:col-span-3">
-                    {/* Sort Bar */}
                     <div className="flex items-center justify-between mb-8 p-5 rounded-xl shadow-sm"
                         style={{ backgroundColor: '#F7F1E8', borderColor: '#D96C39', border: '1px solid #D96C39' }}>
                         <div className="text-sm font-medium" style={{ color: '#3F2E23' }}>
@@ -342,7 +326,6 @@ function ProductsPageContent() {
                         <div>
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                                 {products.map((product, idx) => {
-                                    // 👉 FIX: Sửa thành categoryId và categoryName
                                     const categoryName = categories.find(c => c.categoryId === product.categoryId)?.categoryName || 'Chưa phân loại';
                                     const isOutOfStock = isProductOutOfStock(product);
 
@@ -365,7 +348,6 @@ function ProductsPageContent() {
 
                                                 <Link href={`/shop/id/${product.id}`} className="absolute inset-0 z-0" />
 
-                                                {/* Image */}
                                                 <div className="relative w-full h-48 overflow-hidden pointer-events-none" style={{ backgroundColor: '#E8D5B5' }}>
                                                     <Image
                                                         src={imageUrl}
@@ -389,15 +371,22 @@ function ProductsPageContent() {
                                                 </div>
 
                                                 <div className="p-5 flex-1 flex flex-col pointer-events-none relative z-10">
-
                                                     <div className="flex items-center justify-between mb-3 gap-2">
                                                         <div className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: '#D96C39' }}>
                                                             {categoryName}
                                                         </div>
-                                                        <div className="flex items-center shrink-0 shadow-sm">
-                                                            <span className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1">
-                                                                <Store size={12} /> <span className="truncate max-w-[120px]">{product.artisanName || 'Trạm Hồn'}</span>
-                                                            </span>
+                                                        
+                                                        {/* 👉 CLICK ĐƯỢC: Chuyển hướng sang trang Gian Hàng (Thêm z-20 pointer-events-auto) */}
+                                                        <div className="flex items-center shrink-0 shadow-sm z-20 pointer-events-auto">
+                                                            {product.artisanId ? (
+                                                                <Link href={`/shop/artisan/${product.artisanId}`} className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1 hover:bg-orange-100 hover:border-orange-300 transition-colors">
+                                                                    <Store size={12} /> <span className="truncate max-w-[100px]">{product.artisanName || 'Trạm Hồn'}</span>
+                                                                </Link>
+                                                            ) : (
+                                                                <span className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1">
+                                                                    <Store size={12} /> <span className="truncate max-w-[100px]">{product.artisanName || 'Trạm Hồn'}</span>
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -433,7 +422,7 @@ function ProductsPageContent() {
                                                                         style={{ backgroundColor: '#D96C39' }}
                                                                     >
                                                                         <ShoppingCart size={12} />
-                                                                        <span className="whitespace-nowrap">Thêm vào giỏ hàng</span>
+                                                                        <span className="whitespace-nowrap">Thêm vào giỏ</span>
                                                                     </button>
                                                                     <button
                                                                         type="button"
@@ -442,7 +431,7 @@ function ProductsPageContent() {
                                                                         style={{ backgroundColor: '#3F2E23' }}
                                                                     >
                                                                         <CreditCard size={12} />
-                                                                        <span className="whitespace-nowrap">Mua ngay</span>
+                                                                        <span className="whitespace-nowrap">Mua</span>
                                                                     </button>
                                                                 </>
                                                             )}

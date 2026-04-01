@@ -18,28 +18,23 @@ import {
     Clock,
     XCircle,
     AlertCircle,
-    Sparkles,   // Import icon cho Custom Order
-    StickyNote  // Import icon cho Note
+    Sparkles,
+    StickyNote
 } from "lucide-react";
 
-// Import components chung
 import { Header, Footer } from "@/components/common";
 import { Button } from "@/components/ui/button";
 
-// Import Utils & Hook
 import { formatCurrency, formatDate } from "@/lib/utils";
 import useOrderDetails from "@/hooks/useOrderDetails";
 
 export default function OrderDetailPage() {
-    // 1. Lấy ID từ URL
     const params = useParams();
     const router = useRouter();
     const orderId = params.id as string;
 
-    // 2. Gọi Hook lấy dữ liệu (đã có xác thực)
     const { order, isLoading, error, cancelOrderApi } = useOrderDetails(orderId);
 
-    // --- LOGIC UI: Xử lý Hủy đơn với Toast Confirm ---
     const handleCancelClick = () => {
         toast((t) => (
             <div className="min-w-[300px] p-2">
@@ -79,7 +74,6 @@ export default function OrderDetailPage() {
         }
     };
 
-    // --- LOGIC UI: Render Timeline ---
     const renderTimeline = (status: string) => {
         if (status === "CANCELLED") {
             return (
@@ -132,11 +126,7 @@ export default function OrderDetailPage() {
         );
     };
 
-    // --- CHECK CUSTOM ORDER ---
-    // Kiểm tra xem trường chatId có tồn tại không
     const isCustomOrder = order && order.chatId;
-
-    // --- RENDER CHÍNH ---
 
     if (isLoading) {
         return (
@@ -160,7 +150,7 @@ export default function OrderDetailPage() {
                         <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                         <h2 className="text-xl font-bold text-[#3F2E23] mb-2">Không thể tải đơn hàng</h2>
                         <p className="text-gray-500 mb-6">{error || "Không tìm thấy thông tin đơn hàng này."}</p>
-                        <Link href="/orders">
+                        <Link href="/account/orders">
                             <Button className="bg-[#3F2E23] hover:bg-[#2A1E17] text-white w-full">
                                 <ChevronLeft className="mr-2 h-4 w-4" /> Quay lại danh sách
                             </Button>
@@ -189,18 +179,17 @@ export default function OrderDetailPage() {
                 {/* Header Info */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 pb-6 border-b border-[#E8D5B5]">
                     <div>
-                        <div className="flex items-center gap-3 mb-1">
-                            <span className="bg-[#D96C39] text-white text-xs px-2 py-0.5 rounded font-bold uppercase tracking-wider">Order</span>
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="bg-[#D96C39] text-white text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Order</span>
 
-                            {/* NEW: HIỂN THỊ BADGE ĐƠN LÀM RIÊNG */}
                             {isCustomOrder && (
-                                <span className="flex items-center gap-1 bg-purple-100 text-purple-700 border border-purple-200 text-xs px-2 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
+                                <span className="flex items-center gap-1 bg-purple-100 text-purple-700 border border-purple-200 text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
                                     <Sparkles size={12} />
                                     Đơn thiết kế riêng
                                 </span>
                             )}
 
-                            <span className="text-sm text-[#6B4F3E] ml-auto md:ml-0 border-l border-[#6B4F3E]/30 pl-3">
+                            <span className="text-sm text-[#6B4F3E] ml-auto md:ml-0 border-l border-[#6B4F3E]/30 pl-3 font-medium">
                                 {formatDate(order.orderDate)}
                             </span>
                         </div>
@@ -214,7 +203,7 @@ export default function OrderDetailPage() {
                         <Button
                             variant="destructive"
                             onClick={handleCancelClick}
-                            className="bg-white text-red-600 border border-red-200 hover:bg-red-50 shadow-sm"
+                            className="bg-white text-red-600 border border-red-200 hover:bg-red-50 shadow-sm rounded-full px-6"
                         >
                             <XCircle size={16} className="mr-2" />
                             Hủy đơn hàng
@@ -233,39 +222,43 @@ export default function OrderDetailPage() {
                         <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: '#E8D5B5' }}>
                             <div className="bg-[#FFF8F0] px-6 py-4 border-b border-[#E8D5B5] flex items-center gap-2">
                                 <Package size={20} className="text-[#D96C39]" />
-                                <h3 className="font-semibold text-[#3F2E23]">Sản phẩm ({order.items.length})</h3>
+                                <h3 className="font-bold text-[#3F2E23] text-lg">Sản phẩm ({order.items.length})</h3>
                             </div>
 
                             <div className="p-6 divide-y divide-gray-100">
                                 {order.items.map((item, idx) => {
+                                    // 👉 Bọc an toàn để tránh lỗi string.startsWith is not a function nếu null
                                     let imageUrl = item.productImage || '/tramhon-logo.png';
-                                    if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
-                                    // Handle relative paths from backend
-                                    if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-                                        imageUrl = `http://127.0.0.1:8000/${imageUrl}`;
+                                    if (typeof imageUrl === 'string') {
+                                        if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
+                                        if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+                                            imageUrl = `http://127.0.0.1:8000/${imageUrl}`;
+                                        }
                                     }
 
                                     return (
-                                        <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0 group">
+                                        <div key={idx} className="flex gap-4 py-5 first:pt-0 last:pb-0 group">
                                             <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg border bg-gray-50 border-[#E8D5B5]">
                                                 <Image
                                                     src={imageUrl}
-                                                    alt={item.productName}
+                                                    alt={item.productName || 'Sản phẩm'}
                                                     fill
                                                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                                                 />
                                             </div>
 
                                             <div className="flex-1 flex flex-col justify-center">
-                                                <h4 className="font-semibold text-[#3F2E23] text-lg line-clamp-2 mb-1">
+                                                <h4 className="font-bold text-[#3F2E23] text-base md:text-lg line-clamp-2 mb-1">
                                                     {item.productName}
                                                 </h4>
                                                 <div className="flex flex-wrap items-end justify-between gap-2 mt-2">
-                                                    <div className="text-sm text-gray-500 bg-gray-50 px-2 py-1 rounded inline-block">
-                                                        {formatCurrency(item.price)} <span className="text-xs text-gray-400">x</span> {item.quantity}
+                                                    <div className="text-sm font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 inline-flex items-center gap-1.5">
+                                                        {formatCurrency(item.price || item.priceOrder || 0)} 
+                                                        <span className="text-xs text-gray-400">x</span> 
+                                                        <span className="text-[#3F2E23]">{item.quantity}</span>
                                                     </div>
                                                     <span className="font-bold text-[#D96C39] text-lg">
-                                                        {formatCurrency(item.subtotal || (item.price * item.quantity))}
+                                                        {formatCurrency(item.subtotal || ((item.price || item.priceOrder || 0) * item.quantity))}
                                                     </span>
                                                 </div>
                                             </div>
@@ -279,80 +272,87 @@ export default function OrderDetailPage() {
                     {/* RIGHT COLUMN: Info & Payment */}
                     <div className="space-y-6">
 
-                        {/* NEW: NOTE SECTION (HIỂN THỊ NẾU CÓ NOTE) */}
                         {order.note && (
                             <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: '#E8D5B5' }}>
                                 <div className="bg-[#FFF8F0] px-6 py-4 border-b border-[#E8D5B5] flex items-center gap-2">
                                     <StickyNote size={20} className="text-[#D96C39]" />
-                                    <h3 className="font-semibold text-[#3F2E23]">Ghi chú</h3>
+                                    <h3 className="font-bold text-[#3F2E23]">Ghi chú đơn hàng</h3>
                                 </div>
                                 <div className="p-6">
-                                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-[#3F2E23] text-sm italic relative">
-                                        <span className="absolute -top-2 -left-1 text-2xl text-yellow-300">“</span>
-                                        {order.note}
-                                        <span className="absolute -bottom-4 -right-1 text-2xl text-yellow-300">”</span>
+                                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-[#3F2E23] text-sm italic relative">
+                                        <span className="absolute -top-3 -left-1 text-3xl text-yellow-400 opacity-50">“</span>
+                                        <p className="relative z-10">{order.note}</p>
+                                        <span className="absolute -bottom-5 -right-1 text-3xl text-yellow-400 opacity-50">”</span>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* 1. Customer Info */}
+                        {/* Customer Info */}
                         <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: '#E8D5B5' }}>
                             <div className="bg-[#FFF8F0] px-6 py-4 border-b border-[#E8D5B5] flex items-center gap-2">
                                 <MapPin size={20} className="text-[#D96C39]" />
-                                <h3 className="font-semibold text-[#3F2E23]">Địa chỉ nhận hàng</h3>
+                                <h3 className="font-bold text-[#3F2E23]">Địa chỉ nhận hàng</h3>
                             </div>
-                            <div className="p-6 space-y-4">
+                            <div className="p-6 space-y-5">
                                 <div className="flex items-start gap-3">
-                                    <User size={18} className="text-gray-400 mt-0.5 shrink-0" />
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <User size={16} className="text-gray-500" />
+                                    </div>
                                     <div>
-                                        <p className="text-xs text-gray-400 uppercase font-medium">Người nhận</p>
-                                        <p className="font-medium text-[#3F2E23]">{order.customerName}</p>
+                                        <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">Người nhận</p>
+                                        <p className="font-bold text-[#3F2E23]">{order.customerName}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <Phone size={18} className="text-gray-400 mt-0.5 shrink-0" />
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <Phone size={16} className="text-gray-500" />
+                                    </div>
                                     <div>
-                                        <p className="text-xs text-gray-400 uppercase font-medium">Số điện thoại</p>
-                                        <p className="font-medium text-[#3F2E23]">{order.customerPhone}</p>
+                                        <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">Số điện thoại</p>
+                                        <p className="font-bold text-[#3F2E23]">{order.customerPhone}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <MapPin size={18} className="text-gray-400 mt-0.5 shrink-0" />
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <MapPin size={16} className="text-gray-500" />
+                                    </div>
                                     <div>
-                                        <p className="text-xs text-gray-400 uppercase font-medium">Địa chỉ</p>
-                                        <p className="font-medium text-[#3F2E23] leading-relaxed">{order.shippingAddress}</p>
+                                        <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">Địa chỉ giao hàng</p>
+                                        <p className="font-medium text-[#3F2E23] leading-relaxed text-sm">{order.shippingAddress}</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* 2. Payment Info */}
+                        {/* Payment Info */}
                         <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: '#E8D5B5' }}>
                             <div className="bg-[#FFF8F0] px-6 py-4 border-b border-[#E8D5B5] flex items-center gap-2">
                                 <CreditCard size={20} className="text-[#D96C39]" />
-                                <h3 className="font-semibold text-[#3F2E23]">Thanh toán</h3>
+                                <h3 className="font-bold text-[#3F2E23]">Thông tin thanh toán</h3>
                             </div>
                             <div className="p-6 space-y-3">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Phương thức:</span>
-                                    <span className="font-medium text-right text-[#3F2E23] max-w-[60%]">{order.paymentMethod}</span>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-500 font-medium">Phương thức:</span>
+                                    <span className="font-bold text-[#3F2E23] bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                        {order.paymentMethod === 'cod' ? 'Thanh toán khi nhận hàng (COD)' : order.paymentMethod}
+                                    </span>
                                 </div>
 
-                                <div className="border-t border-dashed border-gray-200 my-2"></div>
+                                <div className="border-t border-dashed border-gray-200 my-4"></div>
 
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Tạm tính:</span>
-                                    <span className="font-medium">{formatCurrency(order.totalPrice)}</span>
+                                    <span className="text-gray-500 font-medium">Tạm tính:</span>
+                                    <span className="font-bold text-[#3F2E23]">{formatCurrency(order.totalPrice)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Phí vận chuyển:</span>
-                                    <span className="font-medium">{formatCurrency(order.shippingFee || 0)}</span>
+                                    <span className="text-gray-500 font-medium">Phí vận chuyển:</span>
+                                    <span className="font-bold text-[#3F2E23]">{formatCurrency(order.shippingFee || 0)}</span>
                                 </div>
 
-                                <div className="border-t border-gray-200 pt-4 mt-2 flex justify-between items-center">
-                                    <span className="font-bold text-[#3F2E23] text-lg">Tổng cộng:</span>
-                                    <span className="text-2xl font-bold text-[#D96C39]">
+                                <div className="border-t border-gray-200 pt-4 mt-4 flex justify-between items-center bg-[#FFF8F0] -mx-6 px-6 -mb-6 pb-6">
+                                    <span className="font-bold text-[#3F2E23] text-lg uppercase">Tổng cộng</span>
+                                    <span className="text-2xl font-extrabold text-[#D96C39]">
                                         {formatCurrency(order.finalTotal || (order.totalPrice + (order.shippingFee || 0)))}
                                     </span>
                                 </div>
@@ -360,12 +360,12 @@ export default function OrderDetailPage() {
                         </div>
 
                         {/* Support Button */}
-                        <div className="text-center">
+                        <div className="text-center pt-2">
                             <Button
                                 variant="outline"
-                                className="w-full text-[#6B4F3E] border-[#E8D5B5] hover:bg-[#FFF8F0] hover:text-[#D96C39] transition-colors"
+                                className="w-full text-[#6B4F3E] border-[#E8D5B5] hover:bg-[#FFF8F0] hover:text-[#D96C39] transition-colors rounded-full font-bold h-12"
                             >
-                                Liên hệ hỗ trợ
+                                Liên hệ hỗ trợ đơn hàng
                             </Button>
                         </div>
                     </div>

@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCart } from '@/contexts/CartContext';
 import toast from 'react-hot-toast';
-import { ShoppingCart, CreditCard } from 'lucide-react';
+import { ShoppingCart, CreditCard, Store } from 'lucide-react'; // Đã thêm icon Store
 import {axiosClient} from '@/lib/axios';
 import { mapToProductWithCategory, ProductWithCategory } from '@/utils/ProductMapper';
 import { PaginatedProductResponse } from '@/types/apiTypes';
@@ -21,7 +21,7 @@ export default function FeaturedProducts() {
         const fetchProducts = async () => {
             try {
                 // Lấy 8 sản phẩm nổi bật (sắp xếp theo bán chạy)
-                const response = await axiosClient.get<PaginatedProductResponse>('/products?sort=featured&size=8');
+                const response = await axiosClient.get<PaginatedProductResponse>('/products/?sort=featured&size=8'); // 👉 FIX: Thêm / vào URL cho chuẩn
                 const productsWithCategory = response.data.content.map(mapToProductWithCategory);
 
                 setProducts(productsWithCategory);
@@ -56,8 +56,9 @@ export default function FeaturedProducts() {
             productName: product.name,
             price: product.price,
             image: product.image || '/tramhon-logo.png',
-            stockQuantity: product.stock_quantity,
+            stockQuantity: product.stockQuantity, // 👉 FIX: stockQuantity
             quantity: 1,
+            artisanId: product.artisanId || undefined // 👉 FIX: Bổ sung cho Multi-vendor
         });
 
         toast.success('Đã thêm vào giỏ hàng!');
@@ -77,8 +78,9 @@ export default function FeaturedProducts() {
             productName: product.name,
             price: product.price,
             image: product.image || '/tramhon-logo.png',
-            stockQuantity: product.stock_quantity,
+            stockQuantity: product.stockQuantity, // 👉 FIX: stockQuantity
             quantity: 1,
+            artisanId: product.artisanId || undefined // 👉 FIX: Bổ sung cho Multi-vendor
         });
 
         router.push('/checkout');
@@ -142,7 +144,8 @@ export default function FeaturedProducts() {
                                             </div>
                                         )}
 
-                                        {product.quantity_sold && product.quantity_sold > 0 && !isOutOfStock && (
+                                        {/* 👉 FIX: quantitySold */}
+                                        {product.quantitySold && product.quantitySold > 0 && !isOutOfStock && (
                                             <div className="absolute top-3 right-3 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md" style={{ backgroundColor: '#D96C39' }}>
                                                 ⭐ Bán chạy
                                             </div>
@@ -151,9 +154,18 @@ export default function FeaturedProducts() {
 
                                     {/* Content */}
                                     <div className="p-5 flex-1 flex flex-col pointer-events-none relative z-10">
-                                        <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#D96C39' }}>
-                                            {product.categoryName || 'Chưa phân loại'}
+                                        <div className="flex items-center justify-between mb-3 gap-2">
+                                            <div className="text-xs font-semibold uppercase tracking-wide truncate" style={{ color: '#D96C39' }}>
+                                                {product.categoryName || 'Chưa phân loại'}
+                                            </div>
+                                            <div className="flex items-center shrink-0 shadow-sm">
+                                                <span className="text-[10px] text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1">
+                                                    <Store size={10} className="text-orange-600" />
+                                                    <span className="truncate max-w-[100px]">{product.artisanName || 'Trạm Hồn'}</span>
+                                                </span>
+                                            </div>
                                         </div>
+                                        
                                         <h3 className="text-sm font-semibold mb-2 line-clamp-2 transition-colors" style={{ color: '#3F2E23' }}>
                                             {product.name}
                                         </h3>
@@ -204,7 +216,7 @@ export default function FeaturedProducts() {
                                     </div>
                                 </div>
                             </div>
-                        )
+                        );
                     })}
                 </div>
             )}

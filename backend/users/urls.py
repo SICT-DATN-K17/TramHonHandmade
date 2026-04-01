@@ -6,4 +6,5 @@ urlpatterns = [
     path('verify-account/', VerifyAccountView.as_view(), name='custom-verify-account'),
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
 ]

@@ -5,8 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { toast } from 'react-hot-toast';
 import { useSession } from 'next-auth/react';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 import {
     ArrowLeft,
     Send,
@@ -18,8 +16,7 @@ import {
     Mail,
     FileText,
     DollarSign,
-    Calendar,
-    Check
+    Calendar
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -31,7 +28,6 @@ import type { Chat, ChatMessage, User as UserType } from '@/types';
 import type { RawChatDataResponse, RawChatMessage } from '@/types/apiTypes';
 import { mapChatDetails, mapToChatMessage } from '@/utils/chatMapper';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
-// Nhớ import thêm hàm upload ở đây nhé!
 import { uploadToCloudinary } from '@/lib/cloudinary'; 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -40,12 +36,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 const getFullImageUrl = (path: string | null | undefined) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    // Handle both old format (/uploads/chat/...) and new format (chat/...)
     let normalizedPath = path;
     if (!normalizedPath.startsWith('/')) {
         normalizedPath = '/' + normalizedPath;
     }
-    // Remove double /uploads/ if exists
     if (normalizedPath.startsWith('/uploads/uploads/')) {
         normalizedPath = normalizedPath.replace('/uploads/uploads/', '/uploads/');
     } else if (!normalizedPath.startsWith('/uploads/')) {
@@ -88,7 +82,7 @@ export default function ArtisanChatDetailPage() {
     // --- REFS ---
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const stompClientRef = useRef<Client | null>(null);
+    const wsRef = useRef<WebSocket | null>(null); // Sửa thành chuẩn WebSocket
 
     // --- SCROLL TO BOTTOM ---
     const scrollToBottom = useCallback(() => {
@@ -99,7 +93,7 @@ export default function ArtisanChatDetailPage() {
         scrollToBottom();
     }, [messages, scrollToBottom]);
 
-    // --- 1. FETCH DATA (Updated to match ProductsPage pattern) ---
+    // --- 1. FETCH DATA ---
     const fetchChatData = useCallback(async () => {
         if (!chatId || Number.isNaN(chatId)) {
             toast.error('ID cuộc trò chuyện không hợp lệ');
@@ -129,61 +123,38 @@ export default function ArtisanChatDetailPage() {
 
     // --- 2. WEBSOCKET CONNECTION ---
     useEffect(() => {
-        if (!chatId) {
-            console.log('[WS] Skipping: no chatId');
-            return;
-        }
-        
-        if (!session?.user?.apiAccessToken) {
-            console.log('[WS] Skipping: no token yet');
-            return;
-        }
+        if (!chatId || !session?.user?.apiAccessToken) return;
 
-        // Use native WebSocket connection authenticated with JWT token
         const token = session.user.apiAccessToken;
         const wsProtocol = API_URL.startsWith('https') ? 'wss' : 'ws';
         const wsUrl = `${wsProtocol}://${(API_URL.replace(/^https?:\/\//, '')).replace(/\/$/, '')}/ws/chat/${chatId}/?token=${token}`;
         
-        console.log('[WS] Attempting to connect to', wsUrl);
-        let reconnectTimeout: NodeJS.Timeout;
+        let reconnectTimeout: NodeJS.Timeout | undefined; // Gán kiểu cho phép undefined
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-            console.log('[WS] Artisan WebSocket connected');
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
         };
         
         ws.onmessage = (ev) => {
-            console.log('[WS] Message received:', ev.data);
             try {
                 const rawMsg: RawChatMessage = JSON.parse(ev.data);
-                console.log('[WS] Parsed message:', rawMsg);
                 const newMsg = mapToChatMessage(rawMsg, chatId);
-                console.log('[WS] Mapped message:', newMsg);
                 setMessages((prev) => {
                     const exists = prev.some(m => m.id === newMsg.id);
-                    console.log(`[WS] Checking dedup: message id=${newMsg.id}, exists=${exists}`);
-                    if (exists) {
-                        console.log('[WS] Message already exists, skipping');
-                        return prev;
-                    }
-                    console.log('[WS] Adding new message to state');
+                    if (exists) return prev;
                     return [...prev, newMsg];
                 });
             } catch (e) {
-                console.error('[WS] Lỗi parse tin nhắn socket:', e, 'Raw:', ev.data);
+                console.error('[WS] Lỗi parse tin nhắn socket:', e);
             }
         };
-        
-        ws.onclose = () => {
-            console.log('[WS] Artisan WebSocket closed');
-        };
 
-        stompClientRef.current = ws as any;
+        wsRef.current = ws;
 
         return () => {
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            try { ws.close(); } catch(e) {}
+            try { ws.close(); } catch { /* Bỏ qua lỗi catch rỗng */ }
         };
     }, [chatId, session?.user?.apiAccessToken]);
 
@@ -198,24 +169,19 @@ export default function ArtisanChatDetailPage() {
         const proposalToast = toast.loading('Đang xử lý đề xuất...');
         
         try {
-            const productPayload: any = {
+            const productPayload = {
                 name: chat?.title || "Đơn hàng tùy chỉnh",
                 price: Number(proposalPrice),
                 description: proposalNote || chat?.description || "",
                 status: "HIDDEN",
-                stock_quantity: 20,
+                stockQuantity: 20,
+                image: chat?.referenceImage ? chat.referenceImage : undefined
             };
-            
-            // Only add image if it has a value
-            if (chat?.reference_image) {
-                productPayload.image = chat.reference_image;
-            }
             
             toast.loading('Đang tạo sản phẩm...', { id: proposalToast });
             const customProduct = await axiosAuth.post('/products/', productPayload);
             
             toast.loading('Đang gửi qua Chat...', { id: proposalToast });
-            // Cập nhật lại gửi tin nhắn JSON chứ không xài FormData nữa
             const payload = {
                 message: JSON.stringify(customProduct.data),
                 type: 'ORDER_PROPOSAL',
@@ -227,8 +193,10 @@ export default function ArtisanChatDetailPage() {
             setIsProposalOpen(false);
             setProposalPrice('');
             setProposalNote('');
-        } catch (error: any) {
-            const errorMsg = error?.response?.data || error?.message || 'Unknown error';
+        } catch (error) {
+            // Xử lý type error an toàn
+            const err = error as { response?: { data?: string }, message?: string };
+            const errorMsg = err.response?.data || err.message || 'Unknown error';
             toast.error('Gửi đề xuất thất bại.', { id: proposalToast });
             console.error('[Proposal] Error:', errorMsg);
         } finally {
@@ -245,9 +213,7 @@ export default function ArtisanChatDetailPage() {
         }
         setSelectedFile(file);
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setImagePreview(reader.result as string);
-        };
+        reader.onloadend = () => setImagePreview(reader.result as string);
         reader.readAsDataURL(file);
     };
 
@@ -268,11 +234,7 @@ export default function ArtisanChatDetailPage() {
 
             if (selectedFile) {
                 toast.loading('Đang tải ảnh lên...', { id: sendToast });
-                try {
-                    imageUrl = await uploadToCloudinary(selectedFile, 'chat');
-                } catch {
-                    throw new Error('Lỗi khi tải ảnh lên. Vui lòng thử lại.');
-                }
+                imageUrl = await uploadToCloudinary(selectedFile, 'chat');
             }
 
             toast.loading('Đang gửi tin nhắn...', { id: sendToast });
@@ -288,7 +250,8 @@ export default function ArtisanChatDetailPage() {
             toast.dismiss(sendToast);
             
         } catch (error) {
-            const errorMessage = (error as Error)?.message || 'Gửi tin nhắn thất bại';
+            const err = error as { message?: string };
+            const errorMessage = err?.message || 'Gửi tin nhắn thất bại';
             toast.error(errorMessage, { id: sendToast });
             console.error(error);
         } finally {
@@ -304,8 +267,6 @@ export default function ArtisanChatDetailPage() {
     };
 
     // --- RENDER ---
-
-    // 1. Loading State (Matching ProductsPage style)
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[calc(100vh-80px)] bg-[#ffffff]">
@@ -320,7 +281,7 @@ export default function ArtisanChatDetailPage() {
     if (!chat) return <div className="p-8 text-center text-[#3F2E23]">Không tìm thấy cuộc trò chuyện.</div>;
 
     const isChatClosed = chat.status === 'CLOSED';
-    const hasReferenceImage = !!chat.reference_image;
+    const hasReferenceImage = !!chat.referenceImage;
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)] bg-white">
@@ -338,13 +299,9 @@ export default function ArtisanChatDetailPage() {
 
                     <div>
                         <div className="flex items-center gap-3">
-                            {/* --- SỬA CHỖ NÀY: Layout Header giống Client --- */}
                             <h1 className="font-bold text-xl text-[#3F2E23] flex items-center gap-2 flex-wrap">
                                 {customer?.name || 'Khách hàng'}
-                                <Badge
-                                    variant="outline"
-                                    className="border-[#E8D5B5] text-[#6B4F3E] bg-[#FFF8F0] font-normal"
-                                >
+                                <Badge variant="outline" className="border-[#E8D5B5] text-[#6B4F3E] bg-[#FFF8F0] font-normal">
                                     ID: {chatId}
                                 </Badge>
                             </h1>
@@ -374,36 +331,30 @@ export default function ArtisanChatDetailPage() {
                 </div>
             </div>
 
-            {/* --- MAIN CONTENT (FLEX) --- */}
+            {/* --- MAIN CONTENT --- */}
             <div className="flex flex-1 overflow-hidden">
-
                 {/* LEFT: CHAT AREA */}
                 <div className="flex-1 flex flex-col relative bg-white">
-
-                    {/* Messages List */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
 
-                        {/* 1. Request Info Block (Pinned Top) */}
+                        {/* Request Info Block */}
                         <div className="mx-auto max-w-3xl rounded-xl border border-[#E8D5B5] p-4 shadow-sm bg-[#FFF8F0] mb-8">
                             <div className="flex gap-4">
                                 {hasReferenceImage && (
                                     <div className="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-[#E8D5B5] bg-white">
-                                        {/* @ts-ignore */}
                                         <Image
-                                            src={getFullImageUrl(chat.reference_image)}
+                                            src={getFullImageUrl(chat.referenceImage)}
                                             alt="Reference"
                                             fill
                                             className="object-cover cursor-pointer hover:scale-105 transition"
-                                            onClick={() => window.open(getFullImageUrl(chat.reference_image), '_blank')}
+                                            onClick={() => window.open(getFullImageUrl(chat.referenceImage), '_blank')}
                                         />
                                     </div>
                                 )}
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-2">
                                         <FileText size={16} className="text-[#6B4F3E]" />
-                                        <h3 className="font-semibold text-sm uppercase text-[#6B4F3E]">
-                                            Yêu cầu thiết kế
-                                        </h3>
+                                        <h3 className="font-semibold text-sm uppercase text-[#6B4F3E]">Yêu cầu thiết kế</h3>
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap leading-relaxed text-[#3F2E23]">
                                         {chat.description || "Không có mô tả chi tiết."}
@@ -412,20 +363,19 @@ export default function ArtisanChatDetailPage() {
                             </div>
                         </div>
 
-                        {/* 2. Chat Bubbles */}
+                        {/* Chat Bubbles */}
                         {messages.length === 0 ? (
                             <div className="text-center py-10 text-[#6B4F3E] opacity-70">
                                 <p>Chưa có tin nhắn nào. Hãy gửi lời chào đến khách hàng!</p>
                             </div>
                         ) : (
                             messages.map((message) => {
-                                const isMe = message.sender_type === 'ARTISAN';
+                                const isMe = message.senderType === 'ARTISAN';
                                 
                                 return (
                                     <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group animate-in fade-in slide-in-from-bottom-2 mb-4`}>
                                         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[85%] md:max-w-[70%]`}>
                                             
-                                            {/* --- SỬA CHỖ NÀY: Thêm Tên Khách Hàng trên tin nhắn nhận được --- */}
                                             {!isMe && (
                                                 <div className="flex items-end gap-2 mb-1">
                                                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-slate-100 text-slate-700 border border-slate-200">
@@ -435,7 +385,6 @@ export default function ArtisanChatDetailPage() {
                                                 </div>
                                             )}
 
-                                            {/* Xử lý hiển thị ORDER_PROPOSAL */}
                                             {message.type === 'ORDER_PROPOSAL' ? (
                                                 (() => {
                                                     const safeParseJSON = (str: string) => {
@@ -444,11 +393,11 @@ export default function ArtisanChatDetailPage() {
                                                         let cleaned = str.trim();
                                                         if (!cleaned.startsWith('{')) cleaned = `{${cleaned}}`;
                                                         try { return JSON.parse(cleaned); } 
-                                                        catch (e1) {
+                                                        catch {
                                                             try {
                                                                 const fixedJSON = cleaned.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":');
                                                                 return JSON.parse(fixedJSON);
-                                                            } catch (e2) { return null; }
+                                                            } catch { return null; }
                                                         }
                                                     };
 
@@ -466,7 +415,7 @@ export default function ArtisanChatDetailPage() {
                                                             </div>
                                                             <div className="p-4 space-y-2">
                                                                 <h3 className="font-bold text-[#3F2E23] text-base leading-tight line-clamp-2">
-                                                                    {productData.productName || 'Sản phẩm thủ công'}
+                                                                    {productData.name || 'Sản phẩm thủ công'}
                                                                 </h3>
                                                                 <div className="flex justify-between items-center mt-2">
                                                                     <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded">
@@ -478,7 +427,7 @@ export default function ArtisanChatDetailPage() {
                                                                 </div>
                                                                 {productData.description && (
                                                                     <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded mt-2 border border-gray-100 italic">
-                                                                        "{productData.description}"
+                                                                        &quot;{productData.description}&quot;
                                                                     </div>
                                                                 )}
                                                                 <div className="mt-2 pt-2 border-t border-gray-100 text-center text-xs text-gray-400">
@@ -489,15 +438,8 @@ export default function ArtisanChatDetailPage() {
                                                     );
                                                 })()
                                             ) : (
-                                                /* Tin nhắn thường / Ảnh */
-                                                <div
-                                                    className={`rounded-2xl px-4 py-3 shadow-sm text-sm transition-all
-                                                        ${isMe
-                                                        ? 'bg-[#3F2E23] text-white rounded-br-none'
-                                                        : 'bg-[#FFF8F0] text-[#3F2E23] border border-[#E8D5B5] rounded-bl-none'
-                                                    }`}
-                                                >
-                                                    {message.is_image ? (
+                                                <div className={`rounded-2xl px-4 py-3 shadow-sm text-sm transition-all ${isMe ? 'bg-[#3F2E23] text-white rounded-br-none' : 'bg-[#FFF8F0] text-[#3F2E23] border border-[#E8D5B5] rounded-bl-none'}`}>
+                                                    {message.isImage ? (
                                                         <div className="relative w-full min-w-[200px] max-w-[250px] h-48 rounded-lg overflow-hidden my-1 bg-black/5 border border-white/10">
                                                             <Image
                                                                 src={getFullImageUrl(message.content)}
@@ -513,9 +455,8 @@ export default function ArtisanChatDetailPage() {
                                                 </div>
                                             )}
 
-                                            {/* Time */}
                                             <span className="text-[10px] mt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity text-[#6B4F3E]">
-                                                {new Date(message.created_at).toLocaleTimeString('vi-VN', {
+                                                {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
                                                     hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'
                                                 })}
                                             </span>
@@ -596,12 +537,11 @@ export default function ArtisanChatDetailPage() {
                     </div>
                 </div>
 
-                {/* RIGHT: SIDEBAR INFO (Desktop Only) - Giữ nguyên */}
+                {/* RIGHT: SIDEBAR INFO */}
                 <div className="w-80 border-l border-[#E8D5B5] p-6 hidden xl:block overflow-y-auto bg-white">
                     <h3 className="font-bold mb-6 text-lg text-[#3F2E23]">Thông tin chi tiết</h3>
 
                     <div className="space-y-6">
-                        {/* Customer Card */}
                         <div className="rounded-xl border border-[#E8D5B5] p-4 bg-[#FFF8F0]">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white bg-[#6B4F3E]">
@@ -629,7 +569,6 @@ export default function ArtisanChatDetailPage() {
 
                         <Separator className="bg-[#E8D5B5]" />
 
-                        {/* Order Details Mini */}
                         <div>
                             <span className="text-xs font-bold uppercase tracking-wider block mb-3 text-[#6B4F3E]">
                                 Tóm tắt yêu cầu
@@ -647,7 +586,7 @@ export default function ArtisanChatDetailPage() {
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-[#6B4F3E] flex items-center gap-1"><Calendar size={14}/> Ngày tạo</span>
                                     <span className="text-[#3F2E23] font-medium">
-                                        {chat.created_at ? new Date(chat.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                                        {chat.createdAt ? new Date(chat.createdAt).toLocaleDateString('vi-VN') : 'N/A'}
                                     </span>
                                 </div>
                             </div>

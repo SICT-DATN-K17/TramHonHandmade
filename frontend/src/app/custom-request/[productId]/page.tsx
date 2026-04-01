@@ -165,8 +165,7 @@ export default function CustomRequestPage() {
         try {
             const formDataPayload = new FormData();
 
-            // @ts-ignore: Nếu product type của bạn có owner/artisan_id thì dùng
-            const artisanId = product?.owner?.id || 1;
+            const artisanId = product?.artisanId || 1;
 
             formDataPayload.append('artisanId', artisanId.toString());
             formDataPayload.append('productId', productId.toString());

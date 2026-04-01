@@ -1,14 +1,8 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import (
-    CustomTokenObtainPairSerializer,
-    CustomRegisterSerializer,
-    VerifyAccountSerializer,
-    ForgotPasswordSerializer,
-    ResetPasswordSerializer
-)
+from .serializers import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, permissions
+from rest_framework import status, permissions, viewsets
 from .models import CustomUser, Otp
 from django.utils import timezone
 from django.db import transaction
@@ -185,3 +179,17 @@ class ResetPasswordView(APIView):
             return Response({"error": "Người dùng không tồn tại."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Lỗi không xác định trong quá trình đặt lại mật khẩu cho {email}: {str(e)}")
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserListSerializer
+    permission_classes = [permissions.AllowAny] 
+
+    def get_queryset(self):
+        queryset = CustomUser.objects.filter(is_active=True)
+        role = self.request.query_params.get('role', None)
+        
+        if role:
+            queryset = queryset.filter(role=role.upper())
+            
+        return queryset

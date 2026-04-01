@@ -45,7 +45,7 @@ class ChatInitiateRequestSerializer(serializers.Serializer):
     def validate_artisan_id(self, value):
         """Kiểm tra nghệ nhân có tồn tại và có đúng vai trò không."""
         # Sử dụng filter().exists() để tối ưu và gọn hơn là dùng try-except
-        if not CustomUser.objects.filter(pk=value, role='ADMIN').exists():
+        if not CustomUser.objects.filter(pk=value, role='ARTISAN').exists():
             raise serializers.ValidationError("Nghệ nhân không tồn tại.")
         return value
 

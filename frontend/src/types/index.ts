@@ -97,6 +97,8 @@ export type User = {
     name: string;
     email: string;
     role?: 'CUSTOMER' | 'ARTISAN' | 'ADMIN';
+    bio?: string | null; 
+    createdAt?: string;
 };
 
 export type Artisan = {

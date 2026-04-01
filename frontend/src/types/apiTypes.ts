@@ -150,3 +150,12 @@ export interface RawChatDataResponse {
     createdAt: string;
     messages: RawChatMessage[];
 }
+
+export interface RawUserResponse {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+    bio?: string | null;
+    created_at: string;
+}
