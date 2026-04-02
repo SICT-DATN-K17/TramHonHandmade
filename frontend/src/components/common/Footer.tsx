@@ -44,7 +44,7 @@ export default function Footer() {
           <ul className="text-sm text-gray-400 space-y-4">
             <li className="flex items-start gap-3">
               <MapPin size={18} className="text-[#D96C39] flex-shrink-0 mt-0.5" />
-              <span>Hanoi University of Industry, Minh Khai, Bac Tu Liem, Hanoi</span>
+              <span>Bac Tu Liem, Hanoi, Vietnam</span>
             </li>
             <li className="flex items-center gap-3">
               <Phone size={18} className="text-[#D96C39] flex-shrink-0" />

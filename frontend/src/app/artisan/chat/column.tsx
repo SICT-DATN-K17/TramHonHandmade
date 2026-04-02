@@ -31,7 +31,7 @@ export const columns: ColumnDef<any>[] = [
             <div style={{ color: THEME.textSecondary }}>ID</div>
         ),
         cell: ({ row }) => (
-            <span style={{ color: THEME.textPrimary }}>{row.original.chat.id}</span>
+            <span className="font-semibold" style={{ color: THEME.textPrimary }}>#{row.original.chat.id}</span>
         ),
     },
     {
@@ -40,20 +40,24 @@ export const columns: ColumnDef<any>[] = [
             <div style={{ color: THEME.textSecondary }}>Ảnh</div>
         ),
         cell: ({ row }) => {
-            // Lấy ảnh sản phẩm, nếu chưa có thì lấy ảnh tham khảo của chat
-            const imagePath = row.original.product?.image || row.original.chat?.reference_image;
+            // Bao quát mọi trường hợp trả về từ backend (đã map qua camelCase hoặc chưa)
+            const product = row.original.product || row.original.chat?.product;
+            const refImage = row.original.chat?.referenceImage || row.original.chat?.reference_image;
+            
+            // Ưu tiên ảnh sản phẩm trước, nếu không có thì lấy ảnh tham khảo khách gửi
+            const imagePath = product?.image || refImage;
 
             return (
                 <div
-                    className="h-10 w-10 relative rounded overflow-hidden border bg-gray-50"
-                    style={{ borderColor: THEME.border }}
+                    className="h-12 w-12 relative rounded-md overflow-hidden border shadow-sm"
+                    style={{ borderColor: THEME.border, backgroundColor: THEME.bgLight }}
                 >
                     <Image
                         src={getProductImageUrl(imagePath)}
                         alt="Thumbnail"
                         fill
-                        className="object-cover"
-                        sizes="40px" // Tối ưu thêm sizes cho ảnh nhỏ
+                        className="object-cover hover:scale-110 transition-transform duration-300"
+                        sizes="48px" 
                     />
                 </div>
             );
@@ -65,11 +69,13 @@ export const columns: ColumnDef<any>[] = [
             <div style={{ color: THEME.textSecondary }}>Tiêu đề yêu cầu</div>
         ),
         cell: ({ row }) => (
-            <div
-                className="max-w-[200px] truncate font-medium"
-                style={{ color: THEME.textPrimary }}
-            >
-                {row.original.chat.title}
+            <div className="flex flex-col max-w-[220px]">
+                <span className="truncate font-bold" style={{ color: THEME.textPrimary }}>
+                    {row.original.chat.title || "Yêu cầu không tên"}
+                </span>
+                <span className="truncate text-[11px] mt-0.5" style={{ color: THEME.textSecondary }}>
+                    {row.original.product?.name || row.original.chat?.product?.name || "Thiết kế theo yêu cầu"}
+                </span>
             </div>
         ),
     },
@@ -110,33 +116,32 @@ export const columns: ColumnDef<any>[] = [
                     className: "bg-gray-100 text-gray-600 border-gray-200",
                     style: {}
                 },
-                NEGOTIATING: { // Thay thế cho IN_PROGRESS
+                NEGOTIATING: { 
                     label: "Đang thương lượng",
                     className: "bg-orange-100 text-orange-800 border-orange-200",
                     style: {}
                 },
-                ORDER_CREATED: { // Mới thêm: Khi Artisan gửi Proposal
-                    label: "Đơn đã được tạo",
+                ORDER_CREATED: { 
+                    label: "Đã gửi báo giá",
                     className: "bg-blue-50 text-blue-700 border-blue-200",
                     style: {}
                 },
-                CLOSED: { // Khi Customer thanh toán xong
+                CLOSED: { 
                     label: "Đã hoàn thành",
                     className: "bg-green-50 text-green-700 border-green-200",
                     style: {}
                 }
             };
-            // ---------------------------
 
             const config = statusMap[status] || {
                 label: status,
-                className: "bg-gray-100",
+                className: "bg-gray-100 text-gray-600 border-gray-200",
                 style: {}
             };
 
             return (
                 <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${config.className}`}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm ${config.className}`}
                     style={config.style}
                 >
                     {config.label}
@@ -150,8 +155,8 @@ export const columns: ColumnDef<any>[] = [
             <div style={{ color: THEME.textSecondary }}>Ngày tạo</div>
         ),
         cell: ({ row }) => (
-            <span style={{ color: THEME.textSecondary }}>
-                {formatDate(row.original.chat.created_at)}
+            <span className="text-sm font-medium" style={{ color: THEME.textSecondary }}>
+                {formatDate(row.original.chat.created_at || row.original.chat.createdAt)}
             </span>
         ),
     },
@@ -163,7 +168,10 @@ export const columns: ColumnDef<any>[] = [
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 hover:bg-[#FFF8F0]" // Hover background: bgLight
+                    className="h-8 w-8 p-0 transition-colors shadow-sm border"
+                    style={{ backgroundColor: '#fff', borderColor: THEME.border }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = THEME.bgLight)}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
                 >
                     <ChevronRight
                         className="h-4 w-4"

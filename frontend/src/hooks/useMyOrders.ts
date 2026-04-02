@@ -28,21 +28,18 @@ const useMyOrders = () => {
         fetchOrders();
     }, [fetchOrders]);
 
-    const cancelOrder = async (orderId: number) => {
+    const cancelOrder = useCallback(async (orderId: number, note?: string) => {
         try {
-            await axiosAuth.put(`/orders/${orderId}/cancel/`);
+            // Gửi note lên trong body (request.data)
+            const res = await axiosAuth.put(`/orders/${orderId}/cancel/`, { note: note });
 
-            setOrders((prev) =>
-                prev.map((order) =>
-                    order.id === orderId ? { ...order, status: "CANCELLED" } : order
-                )
-            );
-            return true;
+            // Update lại state local để UI phản ứng ngay lập tức
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+            return res.data;
         } catch (err: any) {
-            const message = err?.response?.data?.message || "Lỗi khi hủy đơn hàng";
-            throw new Error(message);
+            throw new Error(err.response?.data?.message || 'Không thể hủy đơn hàng');
         }
-    };
+    }, [axiosAuth]);
 
     return { orders, isLoading, error, cancelOrder, refetch: fetchOrders };
 };

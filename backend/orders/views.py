@@ -113,10 +113,13 @@ class OrderViewSet(ModelViewSet):
 
     @action(detail=True, methods=['put'])
     def cancel(self, request, pk=None):
-        """Hủy đơn (Chủ đơn hoặc Artisan/Admin)"""
+        """Hủy đơn (Chủ đơn hoặc Artisan/Admin) và lưu lý do hủy"""
         order = self.get_object()
+        
         if order.status not in ['PENDING', 'CONFIRMED']:
             return Response({"message": "Không thể hủy đơn hàng đang giao hoặc đã hoàn thành!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        cancel_note = request.data.get('note', '')
 
         with transaction.atomic():
             for item in order.items.all():
@@ -126,6 +129,15 @@ class OrderViewSet(ModelViewSet):
                     item.product.save(update_fields=['stock_quantity', 'quantity_sold'])
             
             order.status = 'CANCELLED'
-            order.save(update_fields=['status'])
+            
+            # Ghi đè hoặc nối thêm lý do hủy vào field note cũ
+            if cancel_note:
+                if order.note:
+                    order.note = f"{order.note}\n---\n{cancel_note}"
+                else:
+                    order.note = cancel_note
+
+            # Phải update cả 'note' thay vì chỉ mỗi 'status'
+            order.save(update_fields=['status', 'note'])
 
         return Response({"message": f"Đã hủy đơn hàng thành công. Trạng thái: {order.status}"}, status=status.HTTP_200_OK)

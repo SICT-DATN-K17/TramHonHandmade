@@ -187,7 +187,8 @@ function ProductsPageContent() {
             artisanId: product.artisanId || undefined
         });
 
-        router.push('/checkout');
+        // ĐÃ FIX: Truyền ID sản phẩm qua query string để trang Checkout biết cần thanh toán món nào
+        router.push(`/checkout?ids=${product.id}`);
     };
 
     return (
@@ -376,15 +377,17 @@ function ProductsPageContent() {
                                                             {categoryName}
                                                         </div>
                                                         
-                                                        {/* 👉 CLICK ĐƯỢC: Chuyển hướng sang trang Gian Hàng (Thêm z-20 pointer-events-auto) */}
+                                                        {/* CLICK ĐƯỢC: Chuyển hướng sang trang Gian Hàng (Thêm z-20 pointer-events-auto) */}
                                                         <div className="flex items-center shrink-0 shadow-sm z-20 pointer-events-auto">
                                                             {product.artisanId ? (
-                                                                <Link href={`/shop/artisan/${product.artisanId}`} className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1 hover:bg-orange-100 hover:border-orange-300 transition-colors">
-                                                                    <Store size={12} /> <span className="truncate max-w-[100px]">{product.artisanName || 'Trạm Hồn'}</span>
+                                                                <Link href={`/shop/artisan/${product.artisanId}`} className="text-[11px] text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-bold flex items-center gap-1 hover:bg-orange-100 transition-colors">
+                                                                    <Store size={12} className="text-orange-600" /> 
+                                                                    <span className="truncate max-w-[120px]">{product.artisanName || 'Trạm Hồn'}</span>
                                                                 </Link>
                                                             ) : (
-                                                                <span className="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-medium flex items-center gap-1">
-                                                                    <Store size={12} /> <span className="truncate max-w-[100px]">{product.artisanName || 'Trạm Hồn'}</span>
+                                                                <span className="text-[11px] text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-bold flex items-center gap-1">
+                                                                    <Store size={12} className="text-orange-600" /> 
+                                                                    <span className="truncate max-w-[120px]">{product.artisanName || 'Trạm Hồn'}</span>
                                                                 </span>
                                                             )}
                                                         </div>
@@ -431,7 +434,7 @@ function ProductsPageContent() {
                                                                         style={{ backgroundColor: '#3F2E23' }}
                                                                     >
                                                                         <CreditCard size={12} />
-                                                                        <span className="whitespace-nowrap">Mua</span>
+                                                                        <span className="whitespace-nowrap">Mua ngay</span>
                                                                     </button>
                                                                 </>
                                                             )}

@@ -9,16 +9,18 @@ import Footer from '@/components/common/Footer';
 import type { StoredOrder } from '@/lib/ordersStorage';
 import { RawOrderDetail } from '@/types/apiTypes';
 import useAxiosAuth from "@/hooks/useAxiosAuth";
+import { CheckCircle2, Copy, FileText, ShoppingBag, Home } from 'lucide-react';
+import { toast, Toaster } from 'react-hot-toast';
 
-// Component hiển thị loading (Fallback)
 function LoadingState() {
     return (
-        <div className="min-h-screen font-sans text-gray-800 bg-white">
+        <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7] flex flex-col">
             <Header />
-            <main className="container mx-auto px-6 py-12">
-                <div className="max-w-2xl mx-auto text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a] mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Đang tải thông tin đơn hàng...</p>
+            <main className="container mx-auto px-6 py-24 flex-grow flex items-center justify-center">
+                <div className="max-w-2xl mx-auto text-center flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#E8D5B5] border-t-[#D96C39] mx-auto mb-6"></div>
+                    <p className="text-xl font-bold text-[#3F2E23]">Đang gói ghém thông tin đơn hàng...</p>
+                    <p className="text-[#6B4F3E] mt-2">Vui lòng đợi một chút nhé</p>
                 </div>
             </main>
             <Footer />
@@ -26,7 +28,6 @@ function LoadingState() {
     );
 }
 
-// Component chứa logic chính sử dụng useSearchParams
 function CheckoutSuccessContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -75,9 +76,9 @@ function CheckoutSuccessContent() {
                     phone: orderData.customerPhone,
                     status: mapBackendStatusToFrontend(orderData.status),
                     createdAt: orderData.orderDate,
-                    subtotal: Number(orderData.totalPrice || 0), // Sử dụng trực tiếp totalPrice từ backend làm subtotal
+                    subtotal: Number(orderData.totalPrice || 0),
                     shippingFee: Number(orderData.shippingFee || 0),
-                    total: Number(orderData.finalTotal || orderData.totalPrice || 0), // Sử dụng finalTotal hoặc totalPrice từ backend
+                    total: Number(orderData.finalTotal || orderData.totalPrice || 0),
                     paymentMethod: mapBackendPaymentMethodToFrontend(orderData.paymentMethod),
                     shippingAddress: {
                         fullName: orderData.customerName,
@@ -86,13 +87,11 @@ function CheckoutSuccessContent() {
                         address: orderData.shippingAddress,
                         note: orderData.note || undefined,
                     },
-                    // Sửa lỗi đọc giá sản phẩm
                     items: orderData.items.map((item: any) => ({
                         productId: item.productId,
                         productName: item.productName,
-                        // Đảm bảo quantity và price luôn là số hợp lệ
                         quantity: Number(item.quantity || 0),
-                        price: Number(item.priceOrder || item.price || 0), // Ưu tiên đọc priceOrder, nếu không có thì đọc price
+                        price: Number(item.priceOrder || item.price || 0),
                         image: item.productImage || undefined,
                     })),
                 };
@@ -114,18 +113,18 @@ function CheckoutSuccessContent() {
 
     if (!order) {
         return (
-            <div className="min-h-screen font-sans text-gray-800 bg-white">
+            <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7] flex flex-col">
                 <Header />
-                <main className="container mx-auto px-6 py-12">
-                    <div className="max-w-2xl mx-auto text-center">
-                        <div className="text-6xl mb-6">❌</div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-4">Không tìm thấy đơn hàng</h1>
-                        <p className="text-gray-600 mb-8">Đơn hàng không tồn tại hoặc bạn không có quyền xem đơn hàng này.</p>
+                <main className="container mx-auto px-6 py-24 flex-grow">
+                    <div className="max-w-2xl mx-auto text-center bg-white p-12 rounded-3xl border border-[#E8D5B5] shadow-sm">
+                        <div className="text-6xl mb-6">🔍</div>
+                        <h1 className="text-3xl font-extrabold text-[#3F2E23] mb-4">Không tìm thấy đơn hàng</h1>
+                        <p className="text-[#6B4F3E] mb-8 text-lg">Đơn hàng không tồn tại hoặc bạn không có quyền xem đơn hàng này.</p>
                         <Link
                             href="/shop/products"
-                            className="inline-block bg-[#0f172a] text-white px-8 py-3 rounded-full font-semibold shadow hover:bg-gray-800 transition-all duration-300"
+                            className="inline-flex items-center gap-2 bg-[#D96C39] text-white px-8 py-4 rounded-full font-bold shadow-md hover:bg-[#C25B2D] hover:-translate-y-1 transition-all"
                         >
-                            Tiếp tục mua sắm
+                            <ShoppingBag size={20} /> Về cửa hàng
                         </Link>
                     </div>
                 </main>
@@ -145,9 +144,9 @@ function CheckoutSuccessContent() {
 
     const getStatusName = (status: string) => {
         switch (status) {
-            case 'pending': return 'Đang chờ xử lý';
+            case 'pending': return 'Đang chờ xác nhận';
             case 'confirmed': return 'Đã xác nhận';
-            case 'processing': return 'Đang xử lý';
+            case 'processing': return 'Đang chế tác / Chuẩn bị';
             case 'shipped': return 'Đang giao hàng';
             case 'delivered': return 'Đã nhận hàng';
             case 'cancelled': return 'Đã hủy';
@@ -155,155 +154,178 @@ function CheckoutSuccessContent() {
         }
     };
 
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast.success("Đã copy vào khay nhớ tạm!");
+    };
+
     return (
-        <div className="min-h-screen font-sans text-gray-800 bg-white">
+        <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7]">
             <Header />
-            <main className="container mx-auto px-6 py-12">
+            <Toaster position="top-center" />
+            <main className="container mx-auto px-4 py-12">
                 <div className="max-w-3xl mx-auto">
-                    {/* Success Message */}
-                    <div className="text-center mb-12">
-                        <div className="text-6xl mb-6">✅</div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-4">Đặt hàng thành công!</h1>
-                        <p className="text-lg text-gray-600 mb-2">
-                            Cảm ơn bạn đã đặt hàng. Chúng tôi đã nhận được đơn hàng của bạn và sẽ xử lý trong thời gian sớm nhất.
+                    {/* Success Header */}
+                    <div className="text-center mb-10 animate-in slide-in-from-bottom-4 duration-500">
+                        <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 text-green-500 rounded-full mb-6 border-4 border-white shadow-lg">
+                            <CheckCircle2 size={50} />
+                        </div>
+                        <h1 className="text-4xl font-black text-[#3F2E23] mb-4">Tuyệt vời! Đặt hàng thành công</h1>
+                        <p className="text-lg text-[#6B4F3E] mb-2 max-w-xl mx-auto">
+                            Cảm ơn bạn đã tin tưởng những đôi tay tài hoa. Đơn hàng của bạn đang được các nghệ nhân chuẩn bị!
                         </p>
-                        <p className="text-sm text-gray-500">
-                            Mã đơn hàng: <span className="font-bold text-[#0f172a]">{order.orderNumber}</span>
+                        <p className="text-sm text-[#3F2E23] font-medium bg-[#FFF8F0] inline-block px-4 py-2 rounded-full border border-[#E8D5B5] mt-2">
+                            Mã đơn hàng: <span className="font-extrabold text-[#D96C39] ml-1">{order.orderNumber}</span>
                         </p>
                     </div>
 
-                    {/* Order Details */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-6">Chi tiết đơn hàng</h2>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                    {/* Order Details Card */}
+                    <div className="bg-white rounded-3xl shadow-sm border border-[#E8D5B5] p-6 md:p-10 mb-8 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#D96C39] to-orange-400"></div>
+                        
+                        <h2 className="text-2xl font-bold text-[#3F2E23] mb-6 flex items-center gap-2 border-b border-[#E8D5B5] pb-4">
+                            <FileText className="text-[#D96C39]" /> Thông tin đơn hàng
+                        </h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                            <div className="space-y-4">
                                 <div>
-                                    <p className="text-sm text-gray-600">Mã đơn hàng</p>
-                                    <p className="font-semibold text-gray-900">{order.orderNumber}</p>
+                                    <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Mã đơn hàng</p>
+                                    <p className="font-extrabold text-[#3F2E23] text-lg">{order.orderNumber}</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-600">Ngày đặt hàng</p>
-                                    <p className="font-semibold text-gray-900">
+                                    <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Trạng thái</p>
+                                    <p className="font-bold text-orange-600 bg-orange-50 inline-block px-3 py-1 rounded-md border border-orange-200">
+                                        {getStatusName(order.status)}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Ngày đặt hàng</p>
+                                    <p className="font-bold text-[#3F2E23]">
                                         {new Date(order.createdAt).toLocaleDateString('vi-VN', {
                                             year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
                                         })}
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-600">Trạng thái</p>
-                                    <p className="font-semibold text-gray-900">{getStatusName(order.status)}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600">Phương thức thanh toán</p>
-                                    <p className="font-semibold text-gray-900">{getPaymentMethodName(order.paymentMethod)}</p>
+                                    <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Phương thức thanh toán</p>
+                                    <p className="font-bold text-[#3F2E23]">{getPaymentMethodName(order.paymentMethod)}</p>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Shipping Address */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4">Địa chỉ giao hàng</h2>
-                        <div className="text-gray-700">
-                            <p className="font-semibold mb-2">{order.shippingAddress.fullName}</p>
-                            <p className="text-sm mb-1">📞 {order.shippingAddress.phone}</p>
-                            {order.shippingAddress.email && <p className="text-sm mb-1">✉️ {order.shippingAddress.email}</p>}
-                            <p className="text-sm">📍 {order.shippingAddress.address}</p>
-                            {order.shippingAddress.note && (
-                                <p className="text-sm mt-2 text-gray-600">
-                                    <span className="font-medium">Ghi chú:</span> {order.shippingAddress.note}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Order Items */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-6">Sản phẩm đã đặt</h2>
-                        <div className="space-y-4">
-                            {order.items.map((item) => (
-                                <div key={item.productId} className="flex gap-4 pb-4 border-b last:border-0">
-                                    <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                        <Image
-                                            src={
-                                                item.image
-                                                    ? item.image.startsWith('//')
-                                                        ? `https:${item.image}`
-                                                        : item.image.startsWith('http')
-                                                        ? item.image
-                                                        : item.image.startsWith('/')
-                                                        ? item.image
-                                                        : `/${item.image}`
-                                                    : '/tramhon-logo.png'
-                                            }
-                                            alt={item.productName}
-                                            fill
-                                            className="object-cover"
-                                        />
+                        {/* Payment Instructions for Bank Transfer */}
+                        {order.paymentMethod === 'bank_transfer' && (
+                            <div className="bg-[#FFF8F0] rounded-2xl border-2 border-dashed border-[#D96C39] p-6 md:p-8 mb-8 text-center relative overflow-hidden">
+                                <div className="absolute -right-4 -top-4 w-16 h-16 bg-[#D96C39] rounded-full opacity-10"></div>
+                                <h3 className="font-black text-xl text-[#3F2E23] mb-4">Thông tin chuyển khoản</h3>
+                                <p className="text-sm text-[#6B4F3E] mb-6">Vui lòng chuyển khoản đúng số tiền và nội dung để hệ thống tự động xác nhận đơn hàng của bạn.</p>
+                                
+                                <div className="bg-white p-6 rounded-xl shadow-sm inline-block text-left w-full max-w-md border border-[#E8D5B5]">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-sm text-[#6B4F3E]">Ngân hàng</p>
+                                        <p className="font-bold text-[#3F2E23]">Vietcombank</p>
                                     </div>
-                                    <div className="flex-1">
-                                        <h3 className="font-semibold text-gray-900 mb-1">{item.productName}</h3>
-                                        <p className="text-sm text-gray-600 mb-2">Số lượng: {item.quantity}</p>
-                                        <p className="font-bold text-[#0f172a]">
-                                            ₫{(item.price * item.quantity).toLocaleString('vi-VN')}
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-sm text-[#6B4F3E]">Chủ tài khoản</p>
+                                        <p className="font-bold text-[#3F2E23]">TRAMHON HANDMADE</p>
+                                    </div>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-sm text-[#6B4F3E]">Số tài khoản</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-extrabold text-xl text-[#D96C39] tracking-wider">1234567890</p>
+                                            <button onClick={() => copyToClipboard('1234567890')} className="text-gray-400 hover:text-[#D96C39]"><Copy size={16} /></button>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-sm text-[#6B4F3E]">Số tiền</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-extrabold text-xl text-[#D96C39]">₫{order.total.toLocaleString('vi-VN')}</p>
+                                            <button onClick={() => copyToClipboard(order.total.toString())} className="text-gray-400 hover:text-[#D96C39]"><Copy size={16} /></button>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-3 border-t border-dashed border-[#E8D5B5]">
+                                        <p className="text-sm text-[#6B4F3E]">Nội dung CK</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-bold text-[#3F2E23] bg-gray-100 px-2 py-1 rounded">{order.orderNumber}</p>
+                                            <button onClick={() => copyToClipboard(order.orderNumber)} className="text-gray-400 hover:text-[#D96C39]"><Copy size={16} /></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Shipping Address */}
+                            <div>
+                                <h3 className="text-sm font-bold text-[#6B4F3E] uppercase tracking-wider mb-3 pb-2 border-b border-[#E8D5B5]">Giao hàng đến</h3>
+                                <div className="bg-[#FDFBF7] p-5 rounded-xl border border-[#E8D5B5]">
+                                    <p className="font-bold text-[#3F2E23] text-lg mb-2">{order.shippingAddress.fullName}</p>
+                                    <p className="text-sm text-[#6B4F3E] mb-1 flex items-center gap-2">📞 {order.shippingAddress.phone}</p>
+                                    <p className="text-sm text-[#6B4F3E] mb-2 leading-relaxed">📍 {order.shippingAddress.address}</p>
+                                    {order.shippingAddress.note && (
+                                        <p className="text-sm mt-3 pt-3 border-t border-[#E8D5B5] text-[#D96C39] font-medium">
+                                            📝 Ghi chú: {order.shippingAddress.note}
                                         </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Order Summary & Items */}
+                            <div>
+                                <h3 className="text-sm font-bold text-[#6B4F3E] uppercase tracking-wider mb-3 pb-2 border-b border-[#E8D5B5]">Sản phẩm ({order.items.length})</h3>
+                                <div className="space-y-3 mb-6 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
+                                    {order.items.map((item) => {
+                                        let imageUrl = item.image || '/tramhon-logo.png';
+                                        if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
+                                        else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) imageUrl = `/${imageUrl}`;
+
+                                        return (
+                                            <div key={item.productId} className="flex gap-3 bg-[#FFF8F0] p-2 rounded-xl border border-[#E8D5B5]/50">
+                                                <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-white border border-[#E8D5B5] flex-shrink-0">
+                                                    <Image src={imageUrl} alt={item.productName} fill className="object-cover" />
+                                                </div>
+                                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                    <h4 className="text-sm font-bold text-[#3F2E23] line-clamp-1">{item.productName}</h4>
+                                                    <div className="flex items-center justify-between mt-1">
+                                                        <p className="text-xs font-semibold text-[#6B4F3E] bg-[#E8D5B5]/30 px-1.5 py-0.5 rounded">SL: {item.quantity}</p>
+                                                        <p className="text-sm font-extrabold text-[#D96C39]">
+                                                            ₫{(item.price * item.quantity).toLocaleString('vi-VN')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                <div className="bg-[#FDFBF7] p-5 rounded-xl border border-[#E8D5B5] space-y-2">
+                                    <div className="flex justify-between text-sm font-medium text-[#6B4F3E]">
+                                        <span>Tạm tính:</span>
+                                        <span>₫{order.subtotal.toLocaleString('vi-VN')}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-medium text-[#6B4F3E]">
+                                        <span>Phí vận chuyển:</span>
+                                        <span>{order.shippingFee === 0 ? <span className="text-green-600">Miễn phí</span> : `₫${order.shippingFee.toLocaleString('vi-VN')}`}</span>
+                                    </div>
+                                    <div className="flex justify-between items-end pt-3 mt-3 border-t border-[#E8D5B5] border-dashed">
+                                        <span className="font-bold text-[#3F2E23]">Tổng cộng:</span>
+                                        <span className="text-2xl font-black text-[#D96C39]">₫{order.total.toLocaleString('vi-VN')}</span>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                        {/* Summary */}
-                        <div className="mt-6 pt-6 border-t space-y-3">
-                            <div className="flex justify-between text-gray-600">
-                                <span>Tạm tính:</span>
-                                <span className="font-medium">₫{order.subtotal.toLocaleString('vi-VN')}</span>
-                            </div>
-                            <div className="flex justify-between text-gray-600">
-                                <span>Phí vận chuyển:</span>
-                                <span className="font-medium">
-                                    {order.shippingFee === 0 ? <span className="text-green-600">Miễn phí</span> : `₫${order.shippingFee.toLocaleString('vi-VN')}`}
-                                </span>
-                            </div>
-                            <div className="flex justify-between text-lg font-bold text-gray-900 pt-3 border-t">
-                                <span>Tổng cộng:</span>
-                                <span className="text-[#0f172a]">₫{order.total.toLocaleString('vi-VN')}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Payment Instructions */}
-                    {order.paymentMethod === 'bank_transfer' && (
-                        <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 mb-6">
-                            <h3 className="font-bold text-blue-900 mb-4">Hướng dẫn thanh toán</h3>
-                            <div className="text-sm text-blue-800 space-y-2">
-                                <p>Vui lòng chuyển khoản số tiền <strong>₫{order.total.toLocaleString('vi-VN')}</strong> đến:</p>
-                                <div className="bg-white p-4 rounded-lg mt-3">
-                                    <p><strong>Ngân hàng:</strong> Vietcombank</p>
-                                    <p><strong>Số tài khoản:</strong> 1234567890</p>
-                                    <p><strong>Chủ tài khoản:</strong> TRAMHON HANDMADE</p>
-                                    <p><strong>Nội dung chuyển khoản:</strong> {order.orderNumber}</p>
-                                </div>
-                                <p className="mt-3">Sau khi chuyển khoản, vui lòng gửi ảnh biên lai qua email hoặc liên hệ hotline để chúng tôi xác nhận đơn hàng.</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Next Steps & Actions */}
-                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 mb-6">
-                        <h3 className="font-bold text-gray-900 mb-4">Bước tiếp theo</h3>
-                        <ul className="space-y-2 text-sm text-gray-700">
-                            <li>✅ Chúng tôi đã gửi email xác nhận đơn hàng đến địa chỉ email của bạn.</li>
-                            <li>📦 Đơn hàng sẽ được xử lý trong vòng 1-2 ngày làm việc.</li>
-                            <li>🚚 Bạn sẽ nhận được thông báo khi đơn hàng được giao.</li>
-                            <li>📞 Nếu có thắc mắc, vui lòng liên hệ hotline: 0903 803 556</li>
-                        </ul>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <Link href="/shop/products" className="flex-1 bg-[#0f172a] text-white px-6 py-3 rounded-full font-semibold shadow hover:bg-gray-800 transition-all duration-300 text-center">
-                            Tiếp tục mua sắm
+                    {/* Actions */}
+                    <div className="flex flex-col sm:flex-row justify-center gap-4 animate-in fade-in duration-700 delay-300">
+                        <Link href="/shop/products" className="inline-flex justify-center items-center gap-2 bg-[#3F2E23] text-white px-8 py-4 rounded-full font-bold shadow-lg hover:bg-black hover:-translate-y-1 transition-all">
+                            <ShoppingBag size={20} /> Tiếp tục khám phá
                         </Link>
-                        <Link href="/" className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-full font-semibold hover:border-gray-400 transition-all duration-300 text-center">
-                            Về trang chủ
+                        <Link href="/" className="inline-flex justify-center items-center gap-2 border-2 border-[#3F2E23] text-[#3F2E23] px-8 py-4 rounded-full font-bold hover:bg-[#FDFBF7] transition-all">
+                            <Home size={20} /> Về trang chủ
                         </Link>
                     </div>
                 </div>
@@ -313,7 +335,6 @@ function CheckoutSuccessContent() {
     );
 }
 
-// Default Export: Bọc Content trong Suspense
 export default function CheckoutSuccessPage() {
     return (
         <Suspense fallback={<LoadingState />}>

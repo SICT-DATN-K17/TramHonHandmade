@@ -70,10 +70,6 @@ export default function ArtisanChatManagementPage() {
                         className="rounded-md border overflow-hidden"
                         style={{ borderColor: THEME.border }}
                     >
-                        {/* Lưu ý: DataTable bên trong có thể cần CSS global
-                           hoặc props style để đổi màu header table nếu muốn đồng bộ hoàn toàn.
-                           Ở đây tôi bọc nó trong border màu Be để hợp tone.
-                        */}
                         <DataTable
                             columns={columns}
                             data={chatDataDetails}
