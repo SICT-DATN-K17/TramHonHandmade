@@ -1,5 +1,3 @@
-// Xóa bỏ các import thừa của React (useAxiosAuth, useState...)
-
 export type RawCategoryResponse = {
     categoryId: number;
     categoryName: string;
@@ -50,7 +48,7 @@ export interface RawOrderResponse {
     orderDate: string;
     totalPrice: number;
     isCustomOrder: boolean;
-    note: string | null ;
+    note: string | null;
     items: RawOrderItem[];
 }
 
@@ -79,6 +77,8 @@ export interface RawOrderDetail {
     customerPhone: string;
     note: string | null;
     items: RawOrderDetailItem[];
+    artisanId?: number;
+    artisanName?: string;
 }
 
 export interface RawArtisanOrderListItem {
@@ -105,7 +105,6 @@ export interface RawArtisanOrderList {
     items: RawArtisanOrderListItem[];
 }
 
-// Chat
 export interface RawChatMessage {
     id: number;
     senderId: number;
@@ -157,5 +156,5 @@ export interface RawUserResponse {
     email: string;
     role: string;
     bio?: string | null;
-    created_at: string;
+    createdAt: string;
 }

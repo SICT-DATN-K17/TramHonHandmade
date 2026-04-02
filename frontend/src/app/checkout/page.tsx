@@ -3,31 +3,59 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Store, MapPin, Phone, Mail, FileText, CheckCircle2, CreditCard, Banknote, ChevronRight, Loader2 } from 'lucide-react';
+import { Store, MapPin, Phone, Mail, FileText, CheckCircle2, CreditCard, Banknote, ChevronRight, Loader2, Truck, AlertCircle } from 'lucide-react';
 import type { ShippingAddress, PaymentMethod } from '@/types';
 import useAxiosAuth from "@/hooks/useAxiosAuth";
+import { axiosClient } from '@/lib/axios';
 import toast, { Toaster } from 'react-hot-toast';
-import Link from 'next/link';
+import { formatCurrency } from '@/lib/utils';
+
+const FREE_SHIP_THRESHOLD = 200000;
+const SHIPPING_FEE = 20000;
+
+interface ArtisanUser {
+    id: number;
+    name: string;
+}
 
 function CheckoutContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const axiosAuth = useAxiosAuth();
     const { items, clearCart } = useCart();
+    
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [artisanMap, setArtisanMap] = useState<Record<string, string>>({});
 
-    // --- LỌC ITEM DỰA TRÊN URL PARAMS ---
     const idsParam = searchParams.get('ids');
     const selectedIds = idsParam ? idsParam.split(',').map(Number) : [];
     
     // Chỉ lấy những items có ID nằm trong URL Params
     const checkoutItems = items.filter(item => selectedIds.includes(item.id));
+
+    // Fetch danh sách nghệ nhân để lấy tên Shop
+    useEffect(() => {
+        const fetchArtisans = async () => {
+            try {
+                const res = await axiosClient.get('/users/?role=ARTISAN');
+                const map: Record<string, string> = {};
+                res.data.forEach((u: ArtisanUser) => {
+                    map[u.id.toString()] = u.name;
+                });
+                setArtisanMap(map);
+            } catch (error) {
+                console.error('Failed to fetch artisans:', error);
+            }
+        };
+        fetchArtisans();
+    }, []);
 
     const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
         fullName: '',
@@ -40,13 +68,16 @@ function CheckoutContent() {
     const [showSuccessNotification, setShowSuccessNotification] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
 
-    // Tính tổng chỉ cho các món được thanh toán
+    // LOGIC TÍNH PHÍ SHIP VÀ TỔNG SỐ LƯỢNG MÓN
     const subtotal = checkoutItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
-    const shippingFee = 0;
+    const totalItemsCount = checkoutItems.reduce((sum, item) => sum + item.quantity, 0); // Tính tổng số lượng thực tế
+    
+    const isFreeShip = subtotal >= FREE_SHIP_THRESHOLD;
+    const shippingFee = isFreeShip ? 0 : SHIPPING_FEE;
     const total = subtotal + shippingFee;
+    const amountNeededForFreeShip = FREE_SHIP_THRESHOLD - subtotal;
 
     useEffect(() => {
-        // Nếu không có món nào để thanh toán và không phải đang báo thành công
         if (checkoutItems.length === 0 && !showSuccessNotification) {
             router.push('/cart');
         }
@@ -105,7 +136,7 @@ function CheckoutContent() {
             const orderId = response.data.id;
             const orderNumber = `ART-${orderId}`;
 
-            clearCart(); // Clear luôn giỏ nếu muốn, hoặc chỉ xóa những món vừa mua
+            clearCart(); 
             toast.dismiss(loadingToast);
             setShowSuccessNotification(true);
 
@@ -113,13 +144,14 @@ function CheckoutContent() {
                 router.push(`/checkout/success?orderId=${orderId}&orderNumber=${orderNumber}`);
             }, 1500);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast.dismiss(loadingToast);
             console.error('Order submission error:', error);
-            if (error.response && error.response.status === 400 && error.response.data) {
-                toast.error("Thông tin không hợp lệ. Vui lòng kiểm tra lại.");
+            const err = error as any;
+            if (err.response && err.response.status === 400 && err.response.data) {
+                toast.error("Thôngடல் không hợp lệ. Vui lòng kiểm tra lại.");
             } else {
-                toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đặt hàng.');
+                toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi đặt hàng.');
             }
         } finally {
             setIsSubmitting(false);
@@ -140,6 +172,7 @@ function CheckoutContent() {
     if (checkoutItems.length === 0) return null;
 
     const currentArtisanId = checkoutItems[0]?.artisanId;
+    const artisanName = currentArtisanId ? artisanMap[currentArtisanId.toString()] : 'Gian hàng chế tác';
 
     return (
         <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7]">
@@ -159,7 +192,7 @@ function CheckoutContent() {
                 </div>
             )}
 
-            <main className="container mx-auto px-6 py-12 max-w-6xl">
+            <main className="container mx-auto px-4 lg:px-8 py-10 max-w-7xl">
                 <div className="mb-8">
                     <h1 className="text-3xl font-extrabold text-[#3F2E23] mb-2 flex items-center gap-3">
                         Thanh toán đơn hàng
@@ -178,29 +211,29 @@ function CheckoutContent() {
                                 </h2>
                                 <div className="space-y-5">
                                     <div>
-                                        <label className="block text-sm font-bold text-[#3F2E23] mb-2">Họ và tên <span className="text-red-500">*</span></label>
+                                        <label className="text-sm font-bold text-[#3F2E23] mb-2 flex items-center">Họ và tên <span className="text-red-500 ml-1">*</span></label>
                                         <Input type="text" value={shippingAddress.fullName} onChange={(e) => handleInputChange('fullName', e.target.value)} className={`h-12 bg-gray-50 focus-visible:ring-[#D96C39] ${errors.fullName ? 'border-red-500' : 'border-[#E8D5B5]'}`} placeholder="Nhập họ và tên người nhận" />
                                         {errors.fullName && <p className="text-red-500 text-sm mt-1 font-medium">{errors.fullName}</p>}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <div>
-                                            <label className="block text-sm font-bold text-[#3F2E23] mb-2 flex items-center gap-1"><Phone size={14}/> Số điện thoại <span className="text-red-500">*</span></label>
+                                            <label className="text-sm font-bold text-[#3F2E23] mb-2 flex items-center gap-1"><Phone size={14}/> Số điện thoại <span className="text-red-500 ml-1">*</span></label>
                                             <Input type="tel" value={shippingAddress.phone} onChange={(e) => handleInputChange('phone', e.target.value)} className={`h-12 bg-gray-50 focus-visible:ring-[#D96C39] ${errors.phone ? 'border-red-500' : 'border-[#E8D5B5]'}`} placeholder="0123456789" />
                                             {errors.phone && <p className="text-red-500 text-sm mt-1 font-medium">{errors.phone}</p>}
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-bold text-[#3F2E23] mb-2 flex items-center gap-1"><Mail size={14}/> Email <span className="text-red-500">*</span></label>
+                                            <label className="text-sm font-bold text-[#3F2E23] mb-2 flex items-center gap-1"><Mail size={14}/> Email <span className="text-red-500 ml-1">*</span></label>
                                             <Input type="email" value={shippingAddress.email} onChange={(e) => handleInputChange('email', e.target.value)} className={`h-12 bg-gray-50 focus-visible:ring-[#D96C39] ${errors.email ? 'border-red-500' : 'border-[#E8D5B5]'}`} placeholder="email@example.com" />
                                             {errors.email && <p className="text-red-500 text-sm mt-1 font-medium">{errors.email}</p>}
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-[#3F2E23] mb-2">Địa chỉ giao hàng <span className="text-red-500">*</span></label>
+                                        <label className="text-sm font-bold text-[#3F2E23] mb-2 flex items-center">Địa chỉ giao hàng <span className="text-red-500 ml-1">*</span></label>
                                         <textarea value={shippingAddress.address} onChange={(e) => handleInputChange('address', e.target.value)} rows={3} className={`flex w-full rounded-xl border bg-gray-50 px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D96C39] resize-none ${errors.address ? 'border-red-500' : 'border-[#E8D5B5]'}`} placeholder="Nhập địa chỉ chi tiết" />
                                         {errors.address && <p className="text-red-500 text-sm mt-1 font-medium">{errors.address}</p>}
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-[#3F2E23] mb-2 flex items-center gap-1"><FileText size={14}/> Ghi chú (Tùy chọn)</label>
+                                        <label className="text-sm font-bold text-[#3F2E23] mb-2 flex items-center gap-1"><FileText size={14}/> Ghi chú (Tùy chọn)</label>
                                         <textarea value={shippingAddress.note} onChange={(e) => handleInputChange('note', e.target.value)} rows={2} className="flex w-full rounded-xl border border-[#E8D5B5] bg-gray-50 px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D96C39] resize-none" placeholder="Ghi chú thêm..." />
                                     </div>
                                 </div>
@@ -239,25 +272,29 @@ function CheckoutContent() {
                             <div className="bg-white rounded-2xl shadow-md border border-[#E8D5B5] p-6 sticky top-24">
                                 <h2 className="text-lg font-bold text-[#3F2E23] mb-4 flex items-center justify-between border-b border-[#E8D5B5] pb-4">
                                     <span>Đơn hàng của bạn</span>
-                                    <span className="text-sm font-medium bg-[#FFF8F0] text-[#D96C39] px-2 py-1 rounded-md border border-[#E8D5B5]">{checkoutItems.length} món</span>
+                                    <span className="text-sm font-medium bg-[#FFF8F0] text-[#D96C39] px-2 py-1 rounded-md border border-[#E8D5B5]">
+                                        {/* Sửa lại hiển thị tổng số món ở đây */}
+                                        {totalItemsCount} món
+                                    </span>
                                 </h2>
 
+                                {/* HIỆN TÊN SHOP ĐÃ MAP */}
                                 {currentArtisanId ? (
                                     <Link href={`/shop/artisan/${currentArtisanId}`} className="mb-4 bg-[#F7F1E8] border border-[#E8D5B5] p-3 rounded-lg flex items-center justify-between group hover:bg-[#FFF8F0] hover:border-[#D96C39] transition-all">
                                         <div className="flex items-center gap-2">
                                             <Store size={16} className="text-[#D96C39]" />
-                                            <span className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider group-hover:text-[#D96C39] transition-colors">Xem gian hàng chế tác</span>
+                                            <span className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider group-hover:text-[#D96C39] transition-colors">{artisanName}</span>
                                         </div>
                                         <ChevronRight size={16} className="text-[#6B4F3E] group-hover:text-[#D96C39] transition-colors" />
                                     </Link>
                                 ) : (
                                     <div className="mb-4 bg-[#F7F1E8] border border-[#E8D5B5] p-3 rounded-lg flex items-center gap-2">
                                         <Store size={16} className="text-[#D96C39]" />
-                                        <span className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider">Từ Gian Hàng</span>
+                                        <span className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider">Gian hàng chế tác</span>
                                     </div>
                                 )}
 
-                                <div className="space-y-4 mb-6 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                                <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                                     {checkoutItems.map((item) => {
                                         let imageUrl = item.image || '/tramhon-logo.png';
                                         if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
@@ -273,7 +310,7 @@ function CheckoutContent() {
                                                     <div className="flex items-center justify-between mt-1.5">
                                                         <p className="text-xs font-semibold text-[#6B4F3E] bg-[#E8D5B5]/30 px-1.5 py-0.5 rounded">SL: {item.quantity}</p>
                                                         <p className="text-lg font-black text-[#D96C39]">
-                                                            ₫{(Number(item.price) * item.quantity).toLocaleString('vi-VN')}
+                                                            {formatCurrency(Number(item.price) * item.quantity)}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -282,18 +319,39 @@ function CheckoutContent() {
                                     })}
                                 </div>
 
+                                {/* LOGIC FREE SHIP KHUYẾN KHÍCH MUA THÊM */}
+                                {amountNeededForFreeShip > 0 ? (
+                                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-xl mb-4 flex gap-3 items-start shadow-sm">
+                                        <AlertCircle size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                                        <div className="text-sm text-orange-800">
+                                            Hãy mua thêm <strong className="text-orange-600">{formatCurrency(amountNeededForFreeShip)}</strong> để được <strong className="text-orange-600">Miễn phí giao hàng</strong> nhé!
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-green-50 border border-green-200 p-3 rounded-xl mb-4 flex gap-3 items-center shadow-sm">
+                                        <Truck size={18} className="text-green-600 shrink-0" />
+                                        <div className="text-sm text-green-800 font-medium">
+                                            Đơn hàng của bạn đã đủ điều kiện <strong>Miễn phí giao hàng</strong>!
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="border-t border-[#E8D5B5] pt-4 space-y-3">
                                     <div className="flex justify-between text-sm font-medium text-[#6B4F3E]">
                                         <span>Tạm tính:</span>
-                                        <span>₫{subtotal.toLocaleString('vi-VN')}</span>
+                                        <span>{formatCurrency(subtotal)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm font-medium text-[#6B4F3E]">
                                         <span>Phí vận chuyển:</span>
-                                        <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded font-bold">Miễn phí</span>
+                                        {isFreeShip ? (
+                                            <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded font-bold">Miễn phí</span>
+                                        ) : (
+                                            <span className="font-bold text-[#3F2E23]">{formatCurrency(shippingFee)}</span>
+                                        )}
                                     </div>
                                     <div className="border-t border-[#E8D5B5] pt-3 mt-3 flex justify-between items-center">
                                         <span className="text-base font-bold text-[#3F2E23]">Tổng cộng:</span>
-                                        <span className="text-2xl font-black text-[#D96C39]">₫{total.toLocaleString('vi-VN')}</span>
+                                        <span className="text-2xl font-black text-[#D96C39]">{formatCurrency(total)}</span>
                                     </div>
                                 </div>
 
@@ -317,7 +375,6 @@ function CheckoutContent() {
     );
 }
 
-// Bọc bằng Suspense để dùng được useSearchParams
 export default function CheckoutPage() {
     return (
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#D96C39]" size={40} /></div>}>

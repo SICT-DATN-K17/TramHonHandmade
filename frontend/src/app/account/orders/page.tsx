@@ -6,9 +6,26 @@ import Image from "next/image";
 import useMyOrders from "@/hooks/useMyOrders";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, Package, Calendar, ChevronRight, XCircle, AlertTriangle, X } from "lucide-react";
+import { Loader2, Package, Calendar, ChevronRight, XCircle, AlertTriangle, X, AlertCircle as AlertCircleIcon } from "lucide-react";
 import { Header, Footer } from "@/components/common";
 import toast, { Toaster } from "react-hot-toast";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+const getProductImageUrl = (path: string | null | undefined): string => {
+    if (!path || path === 'undefined' || path === 'null' || path === '') return '/tramhon-logo.png';
+    if (path.startsWith('http')) return path;
+    if (path.startsWith('//')) return `https:${path}`;
+    
+    let normalizedPath = path;
+    if (!normalizedPath.startsWith('/')) normalizedPath = '/' + normalizedPath;
+    if (normalizedPath.startsWith('/uploads/uploads/')) {
+        normalizedPath = normalizedPath.replace('/uploads/uploads/', '/uploads/');
+    } else if (!normalizedPath.startsWith('/uploads/')) {
+        normalizedPath = '/uploads' + normalizedPath;
+    }
+    return `${API_URL}${normalizedPath}`;
+};
 
 const CANCEL_REASONS = [
     "Muốn thay đổi địa chỉ giao hàng",
@@ -61,12 +78,11 @@ export default function MyOrdersPage() {
         const toastId = toast.loading('Đang xử lý hủy đơn...');
 
         try {
-            // Gọi hàm cancelOrder và truyền thêm cancelNoteText (Bạn cần đảm bảo hook cancelOrder hỗ trợ truyền note, hoặc ghép note ở BE)
             await cancelOrder(cancelModalData.orderId!, cancelNoteText);
             toast.success(<b>Đã hủy đơn hàng #{cancelModalData.orderId} thành công!</b>, { id: toastId });
             closeCancelModal();
         } catch (err: any) {
-            toast.error(<b>{err.message || 'Lỗi khi hủy đơn'}</b>, { id: toastId });a
+            toast.error(<b>{err.message || 'Lỗi khi hủy đơn'}</b>, { id: toastId });
         } finally {
             setIsCancelling(false);
         }
@@ -82,7 +98,7 @@ export default function MyOrdersPage() {
         };
         const config = statusMap[status] || { label: status, className: "bg-gray-100 text-gray-800", icon: "📦" };
         return (
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 shadow-sm ${config.className}`}>
+            <span className={`px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${config.className}`}>
                 <span>{config.icon}</span>{config.label}
             </span>
         );
@@ -128,92 +144,109 @@ export default function MyOrdersPage() {
                     </div>
                 ) : (
                     <div className="space-y-6 max-w-5xl mx-auto">
-                        {orders.map((order, idx) => (
-                            <div
-                                key={order.id}
-                                className="group overflow-hidden rounded-2xl border border-[#E8D5B5] transition-all duration-300 hover:shadow-md bg-white"
-                                style={{ animation: `fadeInUp 0.5s ease-out ${idx * 0.1}s backwards` }}
-                            >
-                                {/* Header Order */}
-                                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E8D5B5] px-6 py-4 bg-[#FFF8F0]">
-                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#E8D5B5] shadow-sm">
-                                            <Package size={18} style={{ color: '#D96C39' }} />
-                                            <span className="font-bold text-lg" style={{ color: '#3F2E23' }}>#{order.id}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: '#6B4F3E' }}>
-                                            <Calendar size={16} className="text-[#D96C39]" />{formatDate(order.orderDate)}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">{renderStatusBadge(order.status)}</div>
-                                </div>
+                        {orders.map((order, idx) => {
+                            const isCancelled = order.status === 'cancelled';
+                            const rawNote = order.shippingAddress?.note || "";
+                            const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
+                            const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
 
-                                {/* Body Order */}
-                                <div className="p-6">
-                                    <div className="space-y-4">
-                                        {order.items.map((item: any, index: number) => {
-                                            let imageUrl = item.productImage || item.imageUrl || '/tramhon-logo.png';
-                                            if (imageUrl.startsWith('//')) imageUrl = `https:${imageUrl}`;
-                                            if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-                                                imageUrl = `http://127.0.0.1:8000/${imageUrl}`;
-                                            }
-                                            
-                                            return (
-                                                <div key={index} className="flex gap-4 items-center bg-[#FDFBF7] p-3 rounded-xl border border-[#E8D5B5]/50">
-                                                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-[#E8D5B5] bg-white shadow-sm">
-                                                        <Image src={imageUrl} alt={item.productName || 'Product'} fill className="object-cover" />
-                                                    </div>
-                                                    <div className="flex flex-1 flex-col justify-center">
-                                                        <h4 className="font-bold text-base line-clamp-2 leading-snug" style={{ color: '#3F2E23' }}>{item.productName}</h4>
-                                                        <p className="text-sm mt-1.5 font-medium bg-[#E8D5B5]/30 px-2 py-0.5 rounded-md inline-block w-max" style={{ color: '#6B4F3E' }}>
-                                                            Số lượng: <span className="font-bold text-[#3F2E23]">x{item.quantity}</span>
-                                                        </p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-black text-lg" style={{ color: '#D96C39' }}>
-                                                            {formatCurrency(Number(item.priceOrder || item.price || 0))}
-                                                        </p>
-                                                    </div>
+                            return (
+                                <div
+                                    key={order.id}
+                                    className={`group overflow-hidden rounded-2xl border transition-all duration-500 hover:shadow-md bg-white animate-in fade-in slide-in-from-bottom-4 ${isCancelled ? 'border-red-200' : 'border-[#E8D5B5]'}`}
+                                    style={{ animationFillMode: 'both', animationDelay: `${idx * 100}ms` }}
+                                >
+                                    {/* Header Order */}
+                                    <div className={`flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 ${isCancelled ? 'bg-red-50/50 border-red-100' : 'bg-[#FFF8F0] border-[#E8D5B5]'}`}>
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm ${isCancelled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-[#E8D5B5] text-[#3F2E23]'}`}>
+                                                <Package size={18} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />
+                                                <span className="font-bold text-lg">#{order.orderNumber || order.id}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm font-medium text-[#6B4F3E]">
+                                                <Calendar size={16} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />{formatDate(order.createdAt || order.orderDate)}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">{renderStatusBadge(order.status)}</div>
+                                    </div>
+
+                                    {/* HIỂN THỊ LÝ DO HỦY NGAY TRONG COMPONENT NÀY NẾU LÀ ĐƠN HỦY */}
+                                    {isCancelled && hasCancelReason && (
+                                        <div className="px-6 pt-5">
+                                            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start shadow-sm">
+                                                <AlertCircleIcon className="text-red-600 mt-0.5 shrink-0" size={20} />
+                                                <div>
+                                                    <span className="text-xs font-bold text-red-700 uppercase tracking-wider block mb-1">Lý do hủy đơn</span>
+                                                    <p className="text-sm font-medium text-red-800">{cancelReasonText}</p>
                                                 </div>
-                                            );
-                                        })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Body Order */}
+                                    <div className="p-6">
+                                        <div className="space-y-4">
+                                            {order.items.map((item: any, index: number) => {
+                                                const imageUrl = getProductImageUrl(item.productImage || item.imageUrl || item.image);
+                                                
+                                                return (
+                                                    <div key={index} className="flex gap-4 items-center bg-[#FDFBF7] p-3 rounded-xl border border-[#E8D5B5]/50">
+                                                        <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-[#E8D5B5] bg-white shadow-sm">
+                                                            <Image src={imageUrl} alt={item.productName || 'Product'} fill className="object-cover" />
+                                                        </div>
+                                                        <div className="flex flex-1 flex-col justify-center">
+                                                            <h4 className="font-bold text-base line-clamp-2 leading-snug" style={{ color: '#3F2E23' }}>{item.productName}</h4>
+                                                            <p className="text-sm mt-1.5 font-medium bg-[#E8D5B5]/30 px-2 py-0.5 rounded-md inline-block w-max" style={{ color: '#6B4F3E' }}>
+                                                                Số lượng: <span className="font-bold text-[#3F2E23]">x{item.quantity}</span>
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="font-black text-lg" style={{ color: '#D96C39' }}>
+                                                                {formatCurrency(Number(item.priceOrder || item.price || 0))}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Footer Order */}
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E8D5B5] px-6 py-5 bg-gray-50/30">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
+                                            <span className="text-2xl font-black" style={{ color: '#D96C39' }}>
+                                                {formatCurrency(Number(order.totalPrice || order.total))}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                                            {order.status === "pending" && (
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => openCancelModal(order.id)}
+                                                    className="flex-1 sm:flex-none border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-bold h-11 rounded-xl transition-all"
+                                                >
+                                                    <XCircle size={18} className="mr-1.5" /> Hủy đơn
+                                                </Button>
+                                            )}
+
+                                            {/* Sửa lại Link để trỏ đúng vào account/orders/[id] */}
+                                            <Link href={`/account/orders/${order.id}`} className="flex-1 sm:flex-none">
+                                                <Button className="w-full sm:w-auto text-white font-bold h-11 rounded-xl shadow-md hover:bg-black hover:shadow-lg transition-all" style={{ backgroundColor: '#3F2E23' }}>
+                                                    Xem chi tiết <ChevronRight size={18} className="ml-1" />
+                                                </Button>
+                                            </Link>
+                                        </div>
                                     </div>
                                 </div>
-
-                                {/* Footer Order */}
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E8D5B5] px-6 py-5 bg-gray-50/30">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
-                                        <span className="text-2xl font-black" style={{ color: '#D96C39' }}>
-                                            {formatCurrency(Number(order.totalPrice))}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                                        {order.status === "PENDING" && (
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => openCancelModal(order.id)}
-                                                className="flex-1 sm:flex-none border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-bold h-11 rounded-xl transition-all"
-                                            >
-                                                <XCircle size={18} className="mr-1.5" /> Hủy đơn
-                                            </Button>
-                                        )}
-
-                                        <Link href={`/orders/${order.id}`} className="flex-1 sm:flex-none">
-                                            <Button className="w-full sm:w-auto text-white font-bold h-11 rounded-xl shadow-md hover:bg-black hover:shadow-lg transition-all" style={{ backgroundColor: '#3F2E23' }}>
-                                                Xem chi tiết <ChevronRight size={18} className="ml-1" />
-                                            </Button>
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </main>
 
-            {/* --- CẬP NHẬT: MODAL HỦY ĐƠN HÀNG XỊN SÒ --- */}
+            {/* --- MODAL HỦY ĐƠN HÀNG XỊN SÒ --- */}
             {cancelModalData.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#E8D5B5] overflow-hidden flex flex-col max-h-[90vh]">
@@ -285,9 +318,6 @@ export default function MyOrdersPage() {
             )}
 
             <Footer />
-            <style jsx global>{`
-                @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-            `}</style>
         </div>
     );
 }

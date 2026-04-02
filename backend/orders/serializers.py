@@ -54,13 +54,16 @@ class OrderDetailSerializer(ModelSerializer):
     shipping_fee = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     final_total = serializers.ReadOnlyField(source='total_price') 
     items = OrderDetailItemSerializer(many=True, read_only=True)
+    artisan_id = serializers.ReadOnlyField(source='artisan.id')
+    artisan_name = serializers.ReadOnlyField(source='artisan.name')
 
     class Meta:
         model = Order
         fields = [
             'id', 'chat_id', 'status', 'total_price', 'payment_method',
             'shipping_address', 'customer_name', 'customer_phone', 'note',
-            'shipping_fee', 'order_date', 'final_total', 'items'
+            'shipping_fee', 'order_date', 'final_total', 'items',
+            'artisan_id', 'artisan_name'
         ]
 
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import Link from 'next/link';
 import {
     Table,
     TableBody,
@@ -11,38 +12,16 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { Eye, Loader2, FileText } from 'lucide-react';
 import {
     type StoredOrder,
     type StoredOrderStatus,
 } from '@/lib/ordersStorage';
 import type { PaymentMethod } from '@/types';
-import Image from 'next/image';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import { mapFrontendToBackendStatus, mapBackendToFrontendStatus } from '@/utils/orderStatusMapper';
 import toast, { Toaster } from 'react-hot-toast';
 import type { RawArtisanOrderList } from '@/types/apiTypes';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
-const getProductImageUrl = (path: string | null | undefined): string => {
-    if (!path || path === 'undefined' || path === 'null' || path === '') return '/globe.svg';
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('//')) return `https:${path}`;
-    
-    let normalizedPath = path;
-    if (!normalizedPath.startsWith('/')) {
-        normalizedPath = '/' + normalizedPath;
-    }
-    if (normalizedPath.startsWith('/uploads/uploads/')) {
-        normalizedPath = normalizedPath.replace('/uploads/uploads/', '/uploads/');
-    } else if (!normalizedPath.startsWith('/uploads/')) {
-        normalizedPath = '/uploads' + normalizedPath;
-    }
-    return `${API_URL}${normalizedPath}`;
-};
-
-// --- CONFIGURATION & HELPERS ---
 
 const statusConfig: Partial<Record<
     StoredOrderStatus,
@@ -122,7 +101,7 @@ const mapArtisanOrderToStoredOrder = (rawOrder: RawArtisanOrderList): StoredOrde
             phone: rawOrder.phone,
             email: '',
             address: rawOrder.shippingAddress,
-            note: rawOrder.note || undefined, // Note chứa lý do hủy từ BE
+            note: rawOrder.note || undefined, 
         },
         items: rawOrder.items.map((item) => ({
             productId: item.productId,
@@ -134,11 +113,8 @@ const mapArtisanOrderToStoredOrder = (rawOrder: RawArtisanOrderList): StoredOrde
     };
 };
 
-// --- MAIN COMPONENT ---
-
 const ArtisanOrdersPage = () => {
     const [orders, setOrders] = useState<StoredOrder[]>([]);
-    const [selectedOrder, setSelectedOrder] = useState<StoredOrder | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const axiosAuth = useAxiosAuth();
@@ -163,7 +139,9 @@ const ArtisanOrdersPage = () => {
     }, [fetchOrders]);
 
     const totalRevenue = useMemo(
-        () => orders.reduce((sum, order) => sum + order.total, 0),
+        () => orders
+            .filter(order => order.status !== 'cancelled')
+            .reduce((sum, order) => sum + order.total, 0),
         [orders]
     );
 
@@ -180,13 +158,10 @@ const ArtisanOrdersPage = () => {
             await fetchOrders();
             toast.success('Cập nhật trạng thái đơn hàng thành công');
             
-            // Nếu đang mở modal của order này, update lại state nội bộ của modal
-            if (selectedOrder && selectedOrder.id === orderId) {
-                setSelectedOrder(prev => prev ? { ...prev, status } : null);
-            }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error updating order status:', error);
-            const msg = error.response?.data?.message || error.message || 'Không thể cập nhật trạng thái';
+            const err = error as any;
+            const msg = err.response?.data?.message || err.message || 'Không thể cập nhật trạng thái';
             toast.error(msg);
         }
     };
@@ -218,7 +193,6 @@ const ArtisanOrdersPage = () => {
                     </p>
                 </div>
 
-                {/* Thống kê nhanh */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="rounded-2xl border border-[#E8D5B5] bg-white p-5 shadow-sm">
                         <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng đơn</p>
@@ -236,7 +210,6 @@ const ArtisanOrdersPage = () => {
                     </div>
                 </div>
 
-                {/* Bảng danh sách đơn hàng */}
                 <div className="overflow-hidden rounded-2xl border border-[#E8D5B5] bg-white shadow-sm">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-20 flex-col gap-3" style={{ color: '#6B4F3E' }}>
@@ -278,14 +251,15 @@ const ArtisanOrdersPage = () => {
                                         <TableCell>
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                                                 <div className="flex items-center gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setSelectedOrder(order)}
-                                                        className="border-[#E8D5B5] text-[#3F2E23] hover:bg-[#FFF8F0] shadow-sm font-semibold"
-                                                    >
-                                                        <Eye className="mr-2 h-4 w-4 text-[#D96C39]" /> Xem
-                                                    </Button>
+                                                    <Link href={`/artisan/orders/${order.id}`}>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="border-[#E8D5B5] text-[#3F2E23] hover:bg-[#FFF8F0] shadow-sm font-semibold"
+                                                        >
+                                                            <Eye className="mr-2 h-4 w-4 text-[#D96C39]" /> Xem
+                                                        </Button>
+                                                    </Link>
                                                     <select
                                                         value={order.status}
                                                         onChange={(e) => handleStatusChange(order.id, e.target.value as StoredOrderStatus)}
@@ -307,134 +281,6 @@ const ArtisanOrdersPage = () => {
                         </Table>
                     )}
                 </div>
-
-                {/* Modal chi tiết đơn hàng */}
-                {selectedOrder && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200">
-                        <div className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                            
-                            {/* Modal Header */}
-                            <div className="flex items-center justify-between border-b border-[#E8D5B5] bg-[#FDFBF7] px-6 py-5 shrink-0">
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-wider text-[#D96C39] mb-1">Chi tiết đơn hàng</p>
-                                    <h3 className="text-2xl font-black text-[#3F2E23]">{selectedOrder.orderNumber}</h3>
-                                </div>
-                                <Badge className={`${statusConfig[selectedOrder.status]?.badgeClass} px-3 py-1 text-sm font-bold shadow-sm`}>
-                                    {statusConfig[selectedOrder.status]?.label || selectedOrder.status}
-                                </Badge>
-                            </div>
-
-                            {/* Modal Body */}
-                            <div className="overflow-y-auto custom-scrollbar flex-1">
-                                {/* THÊM BANNER HIỂN THỊ LÝ DO HỦY / GHI CHÚ Ở ĐÂY */}
-                                {selectedOrder.shippingAddress.note && (
-                                    <div className="px-6 pt-6">
-                                        <div className={`p-4 rounded-xl border shadow-sm flex gap-3 items-start ${
-                                            selectedOrder.shippingAddress.note.includes('Lý do hủy') 
-                                            ? 'bg-red-50 border-red-200' 
-                                            : 'bg-orange-50 border-orange-200'
-                                        }`}>
-                                            <div className="shrink-0 mt-0.5">
-                                                {selectedOrder.shippingAddress.note.includes('Lý do hủy') ? (
-                                                    <AlertCircle className="text-red-600" size={20} />
-                                                ) : (
-                                                    <FileText className="text-orange-600" size={20} />
-                                                )}
-                                            </div>
-                                            <div>
-                                                <span className={`font-bold text-xs uppercase tracking-wider mb-1 block ${
-                                                    selectedOrder.shippingAddress.note.includes('Lý do hủy') ? 'text-red-700' : 'text-orange-800'
-                                                }`}>
-                                                    {selectedOrder.shippingAddress.note.includes('Lý do hủy') ? 'Lý do hủy đơn từ khách hàng' : 'Ghi chú từ khách hàng'}
-                                                </span>
-                                                <p className={`text-sm font-medium ${
-                                                    selectedOrder.shippingAddress.note.includes('Lý do hủy') ? 'text-red-600' : 'text-orange-700'
-                                                }`}>
-                                                    {selectedOrder.shippingAddress.note.replace('Lý do hủy đơn:', '').trim()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="grid gap-6 px-6 py-6 md:grid-cols-2">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="font-bold text-[#6B4F3E] text-sm uppercase tracking-wider mb-2">Khách hàng</h4>
-                                            <div className="rounded-xl border border-[#E8D5B5] bg-[#FFF8F0] p-4 text-sm shadow-sm space-y-2">
-                                                <p className="font-bold text-lg text-[#3F2E23]">{selectedOrder.customerName}</p>
-                                                <p className="flex items-center gap-2 text-[#6B4F3E]">📞 <span className="font-medium">{selectedOrder.phone}</span></p>
-                                                {selectedOrder.shippingAddress.email && <p className="flex items-center gap-2 text-[#6B4F3E]">✉️ <span className="font-medium">{selectedOrder.shippingAddress.email}</span></p>}
-                                                <div className="mt-3 pt-3 border-t border-[#E8D5B5]">
-                                                    <p className="text-xs font-bold text-[#6B4F3E] mb-1">ĐỊA CHỈ GIAO HÀNG</p>
-                                                    <p className="text-[#3F2E23] font-medium leading-relaxed">{selectedOrder.shippingAddress.address}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <h4 className="font-bold text-[#6B4F3E] text-sm uppercase tracking-wider mb-2">Thanh toán</h4>
-                                            <div className="rounded-xl border border-[#E8D5B5] bg-[#FFF8F0] p-4 text-sm shadow-sm">
-                                                <p className="font-bold text-[#3F2E23] flex items-center gap-2">
-                                                    💳 {paymentLabels[selectedOrder.paymentMethod]}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <h4 className="font-bold text-[#6B4F3E] text-sm uppercase tracking-wider mb-2">Sản phẩm ({selectedOrder.items.length})</h4>
-                                        <div className="space-y-3 rounded-xl border border-[#E8D5B5] bg-[#FFF8F0] p-4 shadow-sm max-h-[300px] overflow-y-auto custom-scrollbar">
-                                            {selectedOrder.items.map((item) => {
-                                                const imageUrl = getProductImageUrl(item.image);
-                                                return (
-                                                    <div key={`${selectedOrder.id}-${item.productId}`} className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-[#E8D5B5]">
-                                                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-[#E8D5B5] bg-gray-50">
-                                                            <Image src={imageUrl} alt={item.productName} fill sizes="64px" className="object-cover" unoptimized={imageUrl.includes('127.0.0.1') || imageUrl.includes('localhost')} />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="font-bold text-sm text-[#3F2E23] truncate">{item.productName}</p>
-                                                            <p className="text-xs text-[#6B4F3E] mt-1 bg-[#F7F1E8] inline-block px-1.5 py-0.5 rounded font-medium">SL: {item.quantity}</p>
-                                                        </div>
-                                                        <p className="font-black text-sm text-[#D96C39] whitespace-nowrap">
-                                                            {formatCurrency(item.price * item.quantity)}
-                                                        </p>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        <div className="rounded-xl border border-[#E8D5B5] bg-white p-5 text-sm shadow-sm">
-                                            <div className="flex justify-between items-center text-[#6B4F3E] font-medium">
-                                                <span>Tạm tính</span>
-                                                <span className="text-[#3F2E23]">{formatCurrency(selectedOrder.subtotal)}</span>
-                                            </div>
-                                            <div className="mt-3 flex justify-between items-center text-[#6B4F3E] font-medium">
-                                                <span>Phí vận chuyển</span>
-                                                <span className="text-[#3F2E23]">{formatCurrency(selectedOrder.shippingFee)}</span>
-                                            </div>
-                                            <div className="mt-4 flex justify-between items-center border-t border-dashed border-[#E8D5B5] pt-4">
-                                                <span className="font-bold text-[#3F2E23] text-base">Tổng cộng</span>
-                                                <span className="text-2xl font-black text-[#D96C39]">{formatCurrency(selectedOrder.total)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Modal Footer */}
-                            <div className="flex justify-end border-t border-[#E8D5B5] bg-gray-50 px-6 py-4 shrink-0">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setSelectedOrder(null)}
-                                    className="border-[#E8D5B5] text-[#3F2E23] hover:bg-[#FFF8F0] font-bold rounded-xl px-6 h-11 shadow-sm"
-                                >
-                                    Đóng cửa sổ
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </>
     );
