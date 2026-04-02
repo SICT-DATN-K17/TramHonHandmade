@@ -11,10 +11,10 @@ Trạm Hồn là một hệ thống thương mại điện tử đa nhà cung c�
 
 ## Tính năng nổi bật (Key Features)
 
-* ** Kiến trúc phân tán:** Tách biệt hoàn toàn Frontend (Next.js) và Backend logic, tối ưu hiệu năng và khả năng mở rộng đa kênh.
-* ** Tích hợp sâu Odoo ERP:** Tự động đồng bộ hóa toàn bộ dữ liệu Đơn hàng, Tồn kho nguyên vật liệu và thông tin Đối tác (Vendors) sang hệ thống Odoo 16 qua giao thức XML-RPC.
-* ** Real-time Chat & Deal:** Ứng dụng WebSockets và Redis cho phép Khách hàng và Nghệ nhân trực tiếp nhắn tin, thỏa thuận ý tưởng cá nhân hóa và chốt đơn ngay trong khung chat.
-* ** Multi-vendor Dashboard:** Không gian làm việc độc lập cho các Nghệ nhân tự quản lý sản phẩm, trong khi hệ thống Admin kiểm soát tập trung toàn bộ doanh thu qua Odoo.
+* Kiến trúc phân tán:** Tách biệt hoàn toàn Frontend (Next.js) và Backend logic, tối ưu hiệu năng và khả năng mở rộng đa kênh.
+* Tích hợp sâu Odoo ERP:** Tự động đồng bộ hóa toàn bộ dữ liệu Đơn hàng, Tồn kho nguyên vật liệu và thông tin Đối tác (Vendors) sang hệ thống Odoo 16 qua giao thức XML-RPC.
+* Real-time Chat & Deal:** Ứng dụng WebSockets và Redis cho phép Khách hàng và Nghệ nhân trực tiếp nhắn tin, thỏa thuận ý tưởng cá nhân hóa và chốt đơn ngay trong khung chat.
+* Multi-vendor Dashboard:** Không gian làm việc độc lập cho các Nghệ nhân tự quản lý sản phẩm, trong khi hệ thống Admin kiểm soát tập trung toàn bộ doanh thu qua Odoo.
 
 ## Nền tảng Công nghệ (Tech Stack)
 
