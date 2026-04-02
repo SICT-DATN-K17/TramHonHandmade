@@ -1,4 +1,4 @@
-# 🌟 Trạm Hồn (Soul Station)
+# Trạm Hồn (Soul Station)
 **Nền tảng Thương mại Điện tử Đồ thủ công cá nhân hóa - Ứng dụng Kiến trúc Headless & Tích hợp Odoo ERP**
 
 ![Project Status](https://img.shields.io/badge/Status-Active_Development-success)
@@ -9,21 +9,21 @@ Trạm Hồn là một hệ thống thương mại điện tử đa nhà cung c�
 
 
 
-## 🚀 Tính năng nổi bật (Key Features)
+## Tính năng nổi bật (Key Features)
 
-* **🎭 Kiến trúc phân tán:** Tách biệt hoàn toàn Frontend (Next.js) và Backend logic, tối ưu hiệu năng và khả năng mở rộng đa kênh.
-* **📦 Tích hợp sâu Odoo ERP:** Tự động đồng bộ hóa toàn bộ dữ liệu Đơn hàng, Tồn kho nguyên vật liệu và thông tin Đối tác (Vendors) sang hệ thống Odoo 16 qua giao thức XML-RPC.
-* **💬 Real-time Chat & Deal:** Ứng dụng WebSockets và Redis cho phép Khách hàng và Nghệ nhân trực tiếp nhắn tin, thỏa thuận ý tưởng cá nhân hóa và chốt đơn ngay trong khung chat.
-* **🏪 Multi-vendor Dashboard:** Không gian làm việc độc lập cho các Nghệ nhân tự quản lý sản phẩm, trong khi hệ thống Admin kiểm soát tập trung toàn bộ doanh thu qua Odoo.
+* ** Kiến trúc phân tán:** Tách biệt hoàn toàn Frontend (Next.js) và Backend logic, tối ưu hiệu năng và khả năng mở rộng đa kênh.
+* ** Tích hợp sâu Odoo ERP:** Tự động đồng bộ hóa toàn bộ dữ liệu Đơn hàng, Tồn kho nguyên vật liệu và thông tin Đối tác (Vendors) sang hệ thống Odoo 16 qua giao thức XML-RPC.
+* ** Real-time Chat & Deal:** Ứng dụng WebSockets và Redis cho phép Khách hàng và Nghệ nhân trực tiếp nhắn tin, thỏa thuận ý tưởng cá nhân hóa và chốt đơn ngay trong khung chat.
+* ** Multi-vendor Dashboard:** Không gian làm việc độc lập cho các Nghệ nhân tự quản lý sản phẩm, trong khi hệ thống Admin kiểm soát tập trung toàn bộ doanh thu qua Odoo.
 
-## 🛠 Nền tảng Công nghệ (Tech Stack)
+## Nền tảng Công nghệ (Tech Stack)
 
 * **Frontend (Storefront & Vendor Panel):** Next.js, React, TailwindCSS.
 * **Backend API (BFF Gateway):** Django 5.x, Django REST Framework, Django Channels (WebSockets).
 * **Core ERP (Back-office):** Odoo 16, XML-RPC.
 * **Database & Caching:** PostgreSQL 15 (Odoo), MySQL (Django), Redis (Chat).
 
-## 📂 Cấu trúc dự án (Monorepo)
+## Cấu trúc dự án (Monorepo)
 
 ```text
 TramHonHandmade/
@@ -34,7 +34,7 @@ TramHonHandmade/
 │   └── docker-compose.yml
 └── README.md
 
-⚙️ Hướng dẫn cài đặt (Local Development)
+Hướng dẫn cài đặt (Local Development)
 Dự án yêu cầu máy tính đã cài đặt: Python 3.10+, Node.js 18+, và Docker Desktop.
 
 1. Khởi chạy hệ thống ERP (Odoo & PostgreSQL)
