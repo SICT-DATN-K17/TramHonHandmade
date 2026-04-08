@@ -7,7 +7,7 @@ interface ResetPasswordEmailProps {
 
 export function ResetPasswordEmail({ email, otp }: ResetPasswordEmailProps) {
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '20px', color: '#333' }}>
+    <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', padding: '20px', color: '#333' }}>
       <h1 style={{ color: '#3F2E23' }}>Yêu cầu đặt lại mật khẩu Trạm Hồn</h1>
       <p>Chào bạn,</p>
       <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email: <strong>{email}</strong>.</p>

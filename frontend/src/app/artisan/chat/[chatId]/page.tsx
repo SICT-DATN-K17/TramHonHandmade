@@ -175,7 +175,7 @@ export default function ArtisanChatDetailPage() {
                 price: Number(proposalPrice),
                 description: proposalNote || chat?.description || "",
                 status: "HIDDEN",
-                stockQuantity: 20,
+                stockQuantity: 1,
                 image: chat?.referenceImage ? chat.referenceImage : undefined
             };
             

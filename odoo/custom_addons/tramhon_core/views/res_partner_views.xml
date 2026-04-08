@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_inherit_tramhon" model="ir.ui.view">
+        <field name="name">res.partner.form.inherit.tramhon</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            
+            <xpath expr="//field[@name='parent_id']" position="after">
+                <group string="Tích hợp Trạm Hồn (Django)">
+                    <field name="x_role"/>
+                    <field name="x_django_id" readonly="1"/>
+                </group>
+            </xpath>
+            
+            <xpath expr="//page[@name='internal_notes']" position="inside">
+                <group string="Tiểu sử / Giới thiệu (Web)">
+                    <field name="x_bio"/>
+                </group>
+            </xpath>
+            
+        </field>
+    </record>
+
+    <record id="view_partner_tree_inherit_tramhon" model="ir.ui.view">
+        <field name="name">res.partner.tree.inherit.tramhon</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='email']" position="after">
+                <field name="x_role"/>
+                <field name="x_django_id" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

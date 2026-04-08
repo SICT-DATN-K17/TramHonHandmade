@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_tramhon_core_tramhon_core,tramhon_core.tramhon_core,model_tramhon_core_tramhon_core,base.group_user,1,1,1,1

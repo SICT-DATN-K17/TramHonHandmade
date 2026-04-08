@@ -23,9 +23,22 @@ class ProductViewset(ModelViewSet):
         user = self.request.user
         role = getattr(user, 'role', '')
         
-        # Chỉ ARTISAN hoặc ADMIN mới được tạo sản phẩm
         if role in ['ARTISAN', 'ADMIN'] or getattr(user, 'is_superuser', False):
-            serializer.save(artisan=user)
+            validated_data = serializer.validated_data
+            status = validated_data.get('status', 'ACTIVE')
+            category = validated_data.get('category')
+            
+            if status == 'HIDDEN' or not category:
+                custom_cat = Category.objects.filter(name="Sản phẩm Tùy chỉnh").first()
+                if not custom_cat:
+                    custom_cat = Category.objects.create(
+                        name="Sản phẩm Tùy chỉnh", 
+                        slug="san-pham-tuy-chinh",
+                        status="HIDDEN"
+                    )
+                serializer.save(artisan=user, category=custom_cat)
+            else:
+                serializer.save(artisan=user)
         else:
             raise PermissionDenied("Chỉ Nghệ nhân hoặc Admin mới được phép đăng sản phẩm.")
 
@@ -95,8 +108,20 @@ class ProductViewset(ModelViewSet):
 
 
 class CategoryViewset(ModelViewSet):
-    queryset = Category.objects.annotate(
-        sold_count=Coalesce(Sum('products__quantity_sold'), 0)
-    ).order_by('-sold_count')
     serializer_class = CategorySerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly] 
+
+    def get_queryset(self):
+        queryset = Category.objects.annotate(
+            sold_count=Coalesce(Sum('products__quantity_sold'), 0)
+        ).order_by('-sold_count')
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.filter(status='ACTIVE')
+        role = getattr(user, 'role', '')
+        is_admin = role == 'ADMIN' or getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False)
+        is_artisan = role == 'ARTISAN'
+        if is_admin or is_artisan:
+            return queryset
+        else:
+            return queryset.filter(status='ACTIVE')

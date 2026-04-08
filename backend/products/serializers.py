@@ -21,13 +21,13 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    category_id= serializers.IntegerField(source= 'id')
-    category_name= serializers.CharField(source= 'name')
-    parent_id= serializers.PrimaryKeyRelatedField(queryset= Category.objects.all(), source= 'parent', allow_null=True)
-    sold_count= serializers.SerializerMethodField()
+    category_id = serializers.IntegerField(source='id', read_only=True)
+    category_name = serializers.CharField(source='name')
+    sold_count = serializers.SerializerMethodField()
+    
     class Meta:
-        model= Category
-        fields= ['category_id', 'category_name', 'parent_id', 'slug', 'created_at', 'updated_at', 'sold_count']
+        model = Category
+        fields = ['category_id', 'category_name', 'slug', 'status', 'created_at', 'updated_at', 'sold_count']
     
     def get_sold_count(self, obj):
         return getattr(obj, 'sold_count', 0)

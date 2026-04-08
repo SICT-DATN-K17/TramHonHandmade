@@ -10,7 +10,7 @@ export function VerificationEmail({
   otp,
 }: VerificationEmailProps) {
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '20px', color: '#333' }}>
+    <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', padding: '20px', color: '#333' }}>
       <h1 style={{ color: '#3F2E23' }}>Chào mừng bạn đến với Trạm Hồn!</h1>
       <p>Chào {username},</p>
       <p>Cảm ơn bạn đã đăng ký tài khoản. Vui lòng sử dụng mã xác thực dưới đây để hoàn tất quá trình đăng ký:</p>

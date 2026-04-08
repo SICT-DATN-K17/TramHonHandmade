@@ -90,3 +90,5 @@ filestore/
 sessions/
 odoo-web-data/
 odoo-db-data/
+odoo/create_app.bat
+odoo/update_app.bat
