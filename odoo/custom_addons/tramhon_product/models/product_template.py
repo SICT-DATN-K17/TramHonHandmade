@@ -1,4 +1,9 @@
-from odoo import models, fields
+from odoo import models, fields, api
+import os
+import requests
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
@@ -9,10 +14,47 @@ class ProductTemplate(models.Model):
         string='Nghệ nhân chế tác', 
         domain="[('x_role', '=', 'ARTISAN')]"
     )
-    x_image_url = fields.Char(string='URL Ảnh')
+    x_image_url = fields.Char(string='URL Ảnh', readonly=True)
 
-    # Các cột khác Odoo ĐÃ CÓ SẴN (Lúc đồng bộ bằng Celery mình sẽ map thẳng vào):
-    # - `name` -> `name`
-    # - `price` -> `list_price`
-    # - `description` -> `description_sale`
-    # - `category_id` -> `categ_id` (Many2one trỏ về product.category)
+    def write(self, vals):
+        res = super(ProductTemplate, self).write(vals)
+        
+        sync_fields = ['name', 'list_price', 'description_sale', 'active', 'categ_id', 'x_artisan_id']
+        
+        if any(key in vals for key in sync_fields):
+            for record in self:
+                if record.x_django_id:
+                    self._send_webhook_to_django(record)
+
+        return res
+
+    def _send_webhook_to_django(self, record):
+        django_url = os.environ.get('DJANGO_WEBHOOK_URL')
+        secret_token = os.environ.get('ODOO_WEBHOOK_SECRET')
+
+        if not django_url or not secret_token:
+            _logger.error("THIẾU CẤU HÌNH BIẾN MÔI TRƯỜNG WEBHOOK")
+            return
+
+        endpoint = f"{django_url.rstrip('/')}/products/"
+
+        payload = {
+            'django_id': record.x_django_id,
+            'name': record.name,
+            'price': record.list_price,
+            'description': record.description_sale or "",
+            'active': record.active,
+            'stock_quantity': record.qty_available, 
+            'category_id': record.categ_id.x_django_id if record.categ_id else None,
+            'artisan_id': record.x_artisan_id.x_django_id if record.x_artisan_id else None,
+        }
+
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Odoo-Token': secret_token
+        }
+
+        try:
+            requests.post(endpoint, json=payload, headers=headers, timeout=3)
+        except Exception as e:
+            _logger.error(f"Lỗi bắn Webhook Product sang Django cho SP {record.x_django_id}: {e}")

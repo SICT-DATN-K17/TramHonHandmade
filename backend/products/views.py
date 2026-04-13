@@ -1,15 +1,17 @@
-from django.shortcuts import render
+import os
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 from django.db.models import Sum, Q
 from django.db.models.functions import Coalesce, Lower
-import logging
-
 from .models import *
 from .serializers import *
 from .permissions import IsArtisanOrReadOnly
 from .paginations import CustomPagination
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -125,3 +127,69 @@ class CategoryViewset(ModelViewSet):
             return queryset
         else:
             return queryset.filter(status='ACTIVE')
+
+
+class OdooWebhookProductView(APIView):
+    permission_classes = [] 
+    
+    def post(self, request):
+        secret_token = request.headers.get('X-Odoo-Token')
+        if secret_token != os.environ.get('ODOO_WEBHOOK_SECRET'):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+            
+        data = request.data
+        django_id = data.get('django_id')
+        
+        if not django_id:
+            return Response({"error": "Missing django_id"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            update_data = {}
+            if 'name' in data: update_data['name'] = data['name']
+            if 'price' in data: update_data['price'] = data['price']
+            if 'description' in data: update_data['description'] = data['description'] if data['description'] else ""
+            if 'active' in data: update_data['status'] = 'ACTIVE' if data['active'] else 'HIDDEN'
+            if 'stock_quantity' in data: update_data['stock_quantity'] = data['stock_quantity']
+            if 'category_id' in data and data['category_id']: 
+                update_data['category_id'] = data['category_id']
+            if 'artisan_id' in data and data['artisan_id']: 
+                update_data['artisan_id'] = data['artisan_id']
+
+            Product.objects.filter(id=django_id).update(**update_data)
+            
+            logger.info(f"Webhook: Đã cập nhật Product ID {django_id} từ Odoo.")
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Lỗi xử lý Webhook Product từ Odoo: {e}")
+            return Response({"error": "Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OdooWebhookCategoryView(APIView):
+    permission_classes = [] 
+    
+    def post(self, request):
+        secret_token = request.headers.get('X-Odoo-Token')
+        if secret_token != os.environ.get('ODOO_WEBHOOK_SECRET'):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+            
+        data = request.data
+        django_id = data.get('django_id')
+        
+        if not django_id:
+            return Response({"error": "Missing django_id"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            update_data = {}
+            if 'name' in data: update_data['name'] = data['name']
+            if 'slug' in data: update_data['slug'] = data['slug']
+            if 'active' in data: update_data['status'] = 'ACTIVE' if data['active'] else 'HIDDEN'
+
+            Category.objects.filter(id=django_id).update(**update_data)
+            
+            logger.info(f"Webhook: Đã cập nhật Category ID {django_id} từ Odoo.")
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Lỗi xử lý Webhook Category từ Odoo: {e}")
+            return Response({"error": "Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -15,7 +15,7 @@ router.register(r'users', UserViewSet, basename='user')
 
 webhook_urls= [
     path('users/', OdooWebhookUserView.as_view(), name= 'webhook_users'),
-    
+    path('products/', OdooWebhookProductView.as_view(), name= 'webhook_products'),
 ]
 
 urlpatterns = [

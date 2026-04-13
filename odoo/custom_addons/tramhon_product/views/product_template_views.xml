@@ -11,12 +11,8 @@
                 <field name="x_django_id" readonly="1"/>
             </xpath>
 
-            <xpath expr="//page[@name='sales']" position="after">
-                <page string="Trạm Hồn Media">
-                    <group>
-                        <field name="x_image_url" widget="url"/>
-                    </group>
-                </page>
+            <xpath expr="//field[@name='optional_product_ids']" position="after">
+                <field name="x_image_url" widget="url"/>
             </xpath>
 
         </field>
