@@ -15,11 +15,12 @@
     'version': '0.1',
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'sale_management', 'tramhon_product'],
+    'depends': ['base', 'sale_management', 'tramhon_product', 'sale'],
 
     # always loaded
     'data': [
         # 'security/ir.model.access.csv',
+        'views/sale_custom_views.xml',
         'views/sale_order_views.xml',
         'views/templates.xml',
     ],

@@ -4,10 +4,12 @@ services:
   db:
     image: postgres:15
     container_name: tramhon_odoo_db
+    env_file:
+      - .env
     environment:
       - POSTGRES_DB=postgres
-      - POSTGRES_PASSWORD=odoo
-      - POSTGRES_USER=odoo
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
     ports:
       - "5433:5432" 
     volumes:
@@ -19,6 +21,8 @@ services:
     container_name: tramhon_odoo16
     depends_on:
       - db
+    env_file:
+      - .env
     ports:
       - "8070:8069"
     volumes:
@@ -26,8 +30,8 @@ services:
       - ./custom_addons:/mnt/extra-addons
     environment:
       - HOST=db
-      - USER=odoo
-      - PASSWORD=odoo
+      - USER=${DB_USER}
+      - PASSWORD=${DB_PASSWORD}
     restart: unless-stopped
 
 volumes:

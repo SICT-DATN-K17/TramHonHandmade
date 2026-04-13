@@ -21,3 +21,18 @@ class IsArtisanOrAdmin(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return getattr(request.user, 'is_artisan', False) or getattr(request.user, 'is_system_admin', False)
+
+
+class IsOwnerOrReadOnly(permissions.BasePermission):
+    """
+    Quyền thao tác trên Object: 
+    - Bất kỳ ai (kể cả chưa đăng nhập) cũng có thể XEM (GET).
+    - Chỉ CHỦ SỞ HỮU (Owner) mới được phép SỬA/XÓA (PUT, PATCH, DELETE).
+    """
+    def has_object_permission(self, request, view, obj):
+        # Các request chỉ đọc (GET, HEAD, OPTIONS) luôn được phép qua
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        # Đối với request ghi (PATCH, PUT), kiểm tra xem user đang request có phải là user bị sửa không
+        return obj == request.user

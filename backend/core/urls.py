@@ -13,8 +13,13 @@ router.register(r'orders', OrderViewSet, basename='order')
 router.register(r'chat', ChatViewSet, basename='chat')
 router.register(r'users', UserViewSet, basename='user')
 
+webhook_urls= [
+    path('users/', OdooWebhookUserView.as_view(), name= 'webhook_users'),
+    
+]
 
 urlpatterns = [
     path('', include(router.urls)),
     path('sign-cloudinary-upload/', SignatureAPIView.as_view(), name='sign-cloudinary-upload'),
+    path('webhooks/', include(webhook_urls)),
 ]

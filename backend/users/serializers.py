@@ -12,7 +12,7 @@ class CustomUserCreateSerializer(BaseUserCreateSerializer):
 
 class CustomUserSerializer(BaseUserSerializer):
     class Meta(BaseUserSerializer.Meta):
-        fields = ('id', 'email', 'name', 'role')
+        fields = ('id', 'email', 'name', 'role', 'bio')
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

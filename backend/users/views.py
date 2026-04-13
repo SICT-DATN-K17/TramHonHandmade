@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *
+from .permissions import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets
@@ -8,6 +9,7 @@ from django.utils import timezone
 from django.db import transaction
 from datetime import timedelta
 import random
+import os
 import logging
 from .utils import (
     send_registration_otp, send_account_verified_email, send_password_reset_otp, send_password_reset_success_email
@@ -181,15 +183,66 @@ class ResetPasswordView(APIView):
             logger.error(f"Lỗi không xác định trong quá trình đặt lại mật khẩu cho {email}: {str(e)}")
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
+class UserViewSet(viewsets.ModelViewSet): 
     serializer_class = UserListSerializer
-    permission_classes = [permissions.AllowAny] 
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
     def get_queryset(self):
         queryset = CustomUser.objects.filter(is_active=True)
         role = self.request.query_params.get('role', None)
-        
         if role:
             queryset = queryset.filter(role=role.upper())
-            
         return queryset
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        allowed_data = {}
+        if 'bio' in request.data:
+            allowed_data['bio'] = request.data['bio']
+        
+        if not allowed_data and partial:
+            return Response({"message": "Không có thông tin hợp lệ để cập nhật."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(instance, data=allowed_data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
+
+
+class OdooWebhookUserView(APIView):
+    permission_classes = []
+    
+    def post(self, request):
+        secret_token = request.headers.get('X-Odoo-Token')
+        if secret_token != os.environ.get('ODOO_WEBHOOK_SECRET'):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+            
+        data = request.data
+        django_id = data.get('django_id')
+        
+        if not django_id:
+            return Response({"error": "Missing django_id"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            update_data = {}
+            if 'name' in data: 
+                update_data['name'] = data['name']
+            if 'x_role' in data: 
+                update_data['role'] = data['x_role']
+            if 'x_bio' in data: 
+                update_data['bio'] = data['x_bio'] if data['x_bio'] else ""
+
+            CustomUser.objects.filter(id=django_id).update(**update_data)
+            
+            logger.info(f"Webhook: Đã cập nhật User ID {django_id} từ Odoo.")
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Lỗi xử lý Webhook từ Odoo: {e}")
+            return Response({"error": "Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

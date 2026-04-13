@@ -55,7 +55,12 @@ python manage.py migrate
 python manage.py runserver
 API Gateway chạy tại: http://localhost:8000
 
-3. Khởi chạy Frontend (Next.js)
+3. Khởi chạy Celery
+cd backend
+.\env\Scripts\activate
+celery -A backend worker -l INFO --pool=solo
+
+4. Khởi chạy Frontend (Next.js)
 Bash
 
 cd frontend
