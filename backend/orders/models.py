@@ -6,18 +6,20 @@ from chat.models import Chat
 
 class Order(models.Model):
     STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('IN_PROGRESS', 'In Progress'),
-        ('COMPLETED', 'Completed'),
-        ('CANCELLED', 'Cancelled'),
-        ('REFUNDED', 'Refunded'),
+        ('PENDING_PICKUP', 'Đang chờ lấy hàng'),
+        ('PACKAGING', 'Đang đóng gói hàng'),
+        ('SHIPPING', 'Đang giao hàng'),
+        ('DELIVERED', 'Đã nhận hàng'),
+        ('COMPLETED', 'Hoàn thành'),
+        ('CANCELLED', 'Đã hủy'),
+        ('REFUNDED', 'Đã hoàn tiền'),
     ]
 
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders_as_customer')
     artisan = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders_as_artisan')
     chat = models.ForeignKey(Chat, on_delete=models.SET_NULL, null=True, blank=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING_PICKUP')
     created_at = models.DateTimeField(auto_now_add=True)
     phone_number = models.CharField(max_length=20)
     address = models.TextField()

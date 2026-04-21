@@ -1,0 +1,13 @@
+note:
+đã update tồn kho thời gian thực, hết hàng k mua đc v
+tạo đơn custom theo mẫu bị hỏng, không tạo được đơn bên odoo v
+tạo đơn custom bị hỏng vì sp hidden, không tạo được so odoo v
+fail custom order: active=True/ status: hidden, không tạo được so -> điều chỉnh lại luồng tạo custom order v
+- không có nút hủy đơn cho kh
+- đồng bộ luồng trạng thái đơn, map so status sang web status: compute/depend, thêm status chi tiết trong order web, cus và art được hủy
+- thanh toán -> tạo báo giá, gửi, tạo so
++ Đối với đơn thường: web: đang đóng gói hàng, odoo: delivery Sẵn sàng. delivery: Hoàn tất, web: Đang giao hàng
++ Đối với đơn custom: web: đang chờ lấy hàng, odoo: delivery chờ. delivery: Sẵn sàng, web: đang đóng gói hàng. delivery: Hoàn tất, web: Đang giao hàng
++ khách hàng nhận được hàng: web: Khách đã nhận hàng, odoo: Tạo hóa đơn, xác nhận đã thanh toán -> web: Hoàn thành
+- thêm delivery address cho cus, thêm bảng address
+- custom lại email template 

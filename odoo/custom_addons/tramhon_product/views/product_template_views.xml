@@ -9,6 +9,7 @@
             <xpath expr="//field[@name='categ_id']" position="after">
                 <field name="x_artisan_id" options="{'no_create': True}"/>
                 <field name="x_django_id" readonly="1"/>
+                <field name="x_web_status" decoration-success="x_web_status == 'ACTIVE'" decoration-danger="x_web_status == 'HIDDEN'"/>
             </xpath>
 
             <xpath expr="//field[@name='optional_product_ids']" position="after">
@@ -25,6 +26,7 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='categ_id']" position="after">
                 <field name="x_artisan_id" optional="show"/>
+                <field name="x_web_status" optional="show" decoration-success="x_web_status == 'ACTIVE'" decoration-danger="x_web_status == 'HIDDEN'"/>
             </xpath>
         </field>
     </record>

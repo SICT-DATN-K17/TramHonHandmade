@@ -50,7 +50,15 @@ export default function ProductDetailPage() {
                 setLoading(false);
             }
         }
+        
         fetchProduct().catch(console.error);
+
+        const intervalId = setInterval(() => {
+            fetchProduct().catch(console.error);
+        }, 3000);
+
+        return () => clearInterval(intervalId);
+
     }, [productId]);
 
     const increase = () =>

@@ -34,11 +34,13 @@ const getProductImageUrl = (path: string | null | undefined): string => {
 };
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
-    pending: { label: 'Đang chờ xử lý', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
-    processing: { label: 'Đang chuẩn bị hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
-    shipped: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    delivered: { label: 'Giao thành công', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
+    pending_pickup: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
+    packaging: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
+    shipping: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    delivered: { label: 'Đã nhận hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
+    completed: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
     cancelled: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
+    refunded: { label: 'Đã hoàn tiền', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: XCircle },
 };
 
 const paymentLabels: Record<string, string> = {
@@ -76,12 +78,14 @@ export default function CustomerOrderDetailPage() {
 
                 const mapBackendStatus = (s: string) => {
                     switch (s) {
-                        case 'PENDING': return 'pending';
-                        case 'IN_PROGRESS': return 'processing';
-                        case 'SHIPPED': return 'shipped';
-                        case 'COMPLETED': return 'delivered';
+                        case 'PENDING_PICKUP': return 'pending_pickup';
+                        case 'PACKAGING': return 'packaging';
+                        case 'SHIPPING': return 'shipping';
+                        case 'DELIVERED': return 'delivered';
+                        case 'COMPLETED': return 'completed';
                         case 'CANCELLED': return 'cancelled';
-                        default: return 'pending';
+                        case 'REFUNDED': return 'refunded';
+                        default: return 'pending_pickup';
                     }
                 };
 

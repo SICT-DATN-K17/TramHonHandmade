@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <menuitem id="sale.menu_sale_order" parent="sale.sale_order_menu" sequence="1"/>
+        <menuitem name="Sale orders" id="sale.menu_sale_order" parent="sale.sale_order_menu" sequence="1"/>
         
-        <menuitem id="sale.menu_sale_quotations" parent="sale.sale_order_menu" sequence="2"/>
+        <menuitem name="Sale quotations" id="sale.menu_sale_quotations" parent="sale.sale_order_menu" sequence="2"/>
     </data>
 </odoo>

@@ -11,11 +11,12 @@ class ProductCategory(models.Model):
     x_django_id = fields.Integer(string='Django Category ID', index=True, copy=False)
     x_slug = fields.Char(string='Slug (Django)', size=100)
     active = fields.Boolean(string='Active', default=True)
+    x_web_status = fields.Selection([('ACTIVE', 'Hiển thị'), ('HIDDEN', 'Ẩn')], string='Trạng thái Web', default='ACTIVE')
     
     def write(self, vals):
         res = super(ProductCategory, self).write(vals)
         
-        sync_fields = ['name', 'x_slug', 'active']
+        sync_fields = ['name', 'x_slug', 'x_web_status']
         if any(key in vals for key in sync_fields):
             for record in self:
                 if record.x_django_id:
@@ -35,7 +36,8 @@ class ProductCategory(models.Model):
             'django_id': record.x_django_id,
             'name': record.name,
             'slug': record.x_slug or "",
-            'active': record.active, 
+            # Trick: Gửi biến 'active' dạng boolean để file views.py bên Django vẫn hiểu mà không cần sửa code
+            'active': True if record.x_web_status == 'ACTIVE' else False, 
         }
 
         headers = {

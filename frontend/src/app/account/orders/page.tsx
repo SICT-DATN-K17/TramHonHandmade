@@ -90,13 +90,20 @@ export default function MyOrdersPage() {
 
     // Hàm helper render badge
     const renderStatusBadge = (status: string) => {
+        const upperStatus = status?.toUpperCase() || '';
+        
         const statusMap: Record<string, { label: string; className: string; icon: string }> = {
-            PENDING: { label: "Đang chờ xử lý", className: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: "⏳" },
-            IN_PROGRESS: { label: "Đang giao hàng", className: "bg-blue-100 text-blue-800 border-blue-200", icon: "🚚" },
-            COMPLETED: { label: "Hoàn thành", className: "bg-green-100 text-green-800 border-green-200", icon: "✅" },
-            CANCELLED: { label: "Đã hủy", className: "bg-red-100 text-red-800 border-red-200", icon: "❌" },
+            PENDING_PICKUP: { label: "Đang chờ lấy hàng", className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "⏳" },
+            PACKAGING: { label: "Đang đóng gói hàng", className: "bg-blue-50 text-blue-700 border-blue-200", icon: "📦" },
+            SHIPPING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
+            DELIVERED: { label: "Đã nhận hàng", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "📬" },
+            COMPLETED: { label: "Hoàn thành", className: "bg-green-50 text-green-700 border-green-200", icon: "✅" },
+            CANCELLED: { label: "Đã hủy", className: "bg-red-50 text-red-700 border-red-200", icon: "❌" },
+            REFUNDED: { label: "Đã hoàn tiền", className: "bg-gray-50 text-gray-700 border-gray-200", icon: "💸" },
         };
-        const config = statusMap[status] || { label: status, className: "bg-gray-100 text-gray-800", icon: "📦" };
+        
+        const config = statusMap[upperStatus] || { label: status, className: "bg-gray-100 text-gray-800", icon: "📦" };
+        
         return (
             <span className={`px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${config.className}`}>
                 <span>{config.icon}</span>{config.label}
@@ -145,7 +152,7 @@ export default function MyOrdersPage() {
                 ) : (
                     <div className="space-y-6 max-w-5xl mx-auto">
                         {orders.map((order, idx) => {
-                            const isCancelled = order.status === 'cancelled';
+                            const isCancelled = order.status?.toUpperCase() === 'CANCELLED';
                             const rawNote = order.shippingAddress?.note || "";
                             const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
                             const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
@@ -221,7 +228,7 @@ export default function MyOrdersPage() {
                                         </div>
 
                                         <div className="flex items-center gap-3 w-full sm:w-auto">
-                                            {order.status === "pending" && (
+                                            {(!['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status?.toUpperCase())) && (
                                                 <Button
                                                     variant="outline"
                                                     onClick={() => openCancelModal(order.id)}

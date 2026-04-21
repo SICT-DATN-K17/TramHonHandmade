@@ -1,0 +1,136 @@
+from celery import shared_task
+from django.apps import apps
+from services.odoo_client import odoo
+import logging
+
+logger = logging.getLogger(__name__)
+
+@shared_task(bind=True, max_retries=3)
+def sync_order_to_odoo_task(self, order_id):
+    try:
+        Order = apps.get_model('orders', 'Order')
+        order = Order.objects.get(id=order_id)
+
+        customer_search = odoo.execute('res.partner', 'search', [('x_django_id', '=', order.customer.id)])
+        if customer_search:
+            odoo_customer_id = customer_search[0]
+        else:
+            odoo_customer_id = odoo.execute('res.partner', 'create', {
+                'name': order.customer.name,
+                'email': order.customer.email,
+                'phone': order.phone_number,
+                'x_django_id': order.customer.id,
+                'x_role': 'CUSTOMER'
+            })
+
+        odoo_artisan_id = False
+        if order.artisan:
+            artisan_search = odoo.execute('res.partner', 'search', [('x_django_id', '=', order.artisan.id)])
+            if artisan_search:
+                odoo_artisan_id = artisan_search[0]
+
+        order_lines = []
+        for item in order.items.all():
+            if not item.product:
+                continue
+                
+            template_search = odoo.execute('product.template', 'search', [('x_django_id', '=', item.product.id)])
+            if template_search:
+                product_search = odoo.execute('product.product', 'search', [('product_tmpl_id', '=', template_search[0])])
+                if product_search:
+                    order_lines.append((0, 0, {
+                        'product_id': product_search[0],
+                        'product_uom_qty': item.quantity,
+                        'price_unit': float(item.price_order),
+                    }))
+
+        if not order_lines:
+            logger.error(f"Order {order_id} không có sản phẩm nào khớp bên Odoo. Hủy sync!")
+            return
+
+        so_payload = {
+            'partner_id': odoo_customer_id,
+            'x_django_id': order.id,
+            'x_artisan_id': odoo_artisan_id,
+            'x_web_address': order.address,
+            'x_web_phone': order.phone_number,
+            'x_web_note': order.note or '',
+            'x_payment_method': order.payment_method or '',
+            'x_web_status': order.status,
+            'order_line': order_lines,
+        }
+        
+        odoo_so_id = odoo.execute('sale.order', 'create', so_payload)
+        logger.info(f"Đã tạo Sale Order thành công trên Odoo: SO_ID = {odoo_so_id}")
+
+        try:
+            so_id = odoo_so_id[0] if isinstance(odoo_so_id, list) else odoo_so_id
+
+            # CHỈ bấm "Confirm" chốt đơn bán hàng. Tuyệt đối KHÔNG auto-validate xuất kho nữa!
+            odoo.execute('sale.order', 'action_confirm', [so_id])
+            
+            logger.info(f"Đã Confirm Sale Order {order_id}. Phiếu xuất kho đã được Odoo tự động tính toán (Chờ hoặc Sẵn sàng)!")
+
+        except Exception as stock_err:
+            logger.warning(f"Đã tạo SO nhưng lỗi lúc confirm: {stock_err}")
+
+        return f"Sync Order {order_id} to Odoo success!"
+
+    except Exception as exc:
+        logger.error(f"Lỗi sync Order ID {order_id}: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+@shared_task(bind=True, max_retries=3)
+def cancel_order_in_odoo_task(self, order_id):
+    try:
+        Order = apps.get_model('orders', 'Order')
+        order = Order.objects.get(id=order_id)
+
+        # 1. TÌM SALE ORDER BÊN ODOO
+        so_search = odoo.execute('sale.order', 'search', [('x_django_id', '=', order.id)])
+        if not so_search:
+            logger.warning(f"Không tìm thấy Sale Order cho Django Order {order.id} để hủy.")
+            return
+
+        so_id = so_search[0]
+        if order.note:
+            odoo.execute('sale.order', 'write', [so_id], {'x_web_note': order.note})
+            logger.info(f"Đã cập nhật lý do hủy vào x_web_note cho SO {so_id}")
+        so_data = odoo.execute('sale.order', 'read', [so_id], ['state', 'picking_ids'])[0]
+
+        if so_data['state'] == 'cancel':
+            return f"SO {so_id} đã được hủy từ trước."
+
+        # =========================================================
+        # 2. XỬ LÝ TRẢ HÀNG (RETURN PICKING) NẾU ĐÃ XUẤT KHO
+        # =========================================================
+        if so_data.get('picking_ids'):
+            pickings = odoo.execute('stock.picking', 'read', so_data['picking_ids'], ['state'])
+            for picking in pickings:
+                if picking['state'] == 'done':
+                    # Gọi Wizard Trả hàng của Odoo
+                    return_wizard_id = odoo.execute('stock.return.picking', 'create', {'picking_id': picking['id']})
+                    # Thực thi lệnh Trả hàng (Sinh ra một Phiếu Nhập Kho chờ thủ kho nhận lại)
+                    odoo.execute('stock.return.picking', 'create_returns', [return_wizard_id])
+                    logger.info(f"Đã tạo Phiếu Trả Hàng thành công cho Picking {picking['id']}")
+
+        # =========================================================
+        # 3. HỦY SALE ORDER VÀ GỬI EMAIL TỰ ĐỘNG
+        # =========================================================
+        try:
+            # Gọi Wizard Hủy Đơn (Giống hệt việc bấm nút Gửi & Hủy trên giao diện Odoo)
+            cancel_wizard_id = odoo.execute('sale.order.cancel', 'create', {'order_id': so_id})
+            odoo.execute('sale.order.cancel', 'action_send_mail_and_cancel', [cancel_wizard_id])
+            logger.info(f"Đã HỦY SO {so_id} và TỰ ĐỘNG GỬI EMAIL cho khách.")
+            
+        except Exception as e:
+            # Fallback an toàn phòng khi Odoo version cũ không có wizard này
+            logger.warning(f"Không thể dùng wizard gửi mail, fallback về lệnh cancel gốc: {e}")
+            odoo.execute('sale.order', 'action_cancel', [so_id])
+            logger.info(f"Đã hủy SO {so_id} bằng action_cancel tiêu chuẩn.")
+
+        return f"Cancel Order {order_id} in Odoo success!"
+
+    except Exception as exc:
+        logger.error(f"Lỗi khi cancel Order ID {order_id} trên Odoo: {exc}")
+        raise self.retry(exc=exc, countdown=60)

@@ -15,11 +15,12 @@ class ProductTemplate(models.Model):
         domain="[('x_role', '=', 'ARTISAN')]"
     )
     x_image_url = fields.Char(string='URL Ảnh', readonly=True)
+    x_web_status = fields.Selection([('ACTIVE', 'Hiển thị'), ('HIDDEN', 'Ẩn')], string='Trạng thái Web', default='ACTIVE')
 
     def write(self, vals):
         res = super(ProductTemplate, self).write(vals)
         
-        sync_fields = ['name', 'list_price', 'description_sale', 'active', 'categ_id', 'x_artisan_id']
+        sync_fields = ['name', 'list_price', 'description_sale', 'x_web_status', 'categ_id', 'x_artisan_id']
         
         if any(key in vals for key in sync_fields):
             for record in self:
@@ -43,7 +44,7 @@ class ProductTemplate(models.Model):
             'name': record.name,
             'price': record.list_price,
             'description': record.description_sale or "",
-            'active': record.active,
+            'active': True if record.x_web_status == 'ACTIVE' else False,
             'stock_quantity': record.qty_available, 
             'category_id': record.categ_id.x_django_id if record.categ_id else None,
             'artisan_id': record.x_artisan_id.x_django_id if record.x_artisan_id else None,

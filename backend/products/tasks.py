@@ -34,7 +34,8 @@ def sync_product_to_odoo_task(self, product_id):
             'x_artisan_id': odoo_artisan_id,
             'x_django_id': prod.id,
             'x_image_url': prod.image or '',
-            'active': True if prod.status == 'ACTIVE' else False,
+            'active': True, 
+            'x_web_status': prod.status, 
             'detailed_type': 'product', 
         }
 
@@ -50,35 +51,36 @@ def sync_product_to_odoo_task(self, product_id):
 
         logger.info(f"Đã {action} vỏ sản phẩm '{prod.name}' trên Odoo (Template ID: {template_id})")
 
-        locations = odoo.execute('stock.location', 'search', [('usage', '=', 'internal')], limit=1)
-        if locations:
-            default_location_id = locations[0]
-            
-            product_variant = odoo.execute('product.product', 'search', [('product_tmpl_id', '=', template_id)])
-            if product_variant:
-                odoo_product_id = product_variant[0]
-                stock_qty = prod.stock_quantity
+        if action == "TẠO MỚI":
+            locations = odoo.execute('stock.location', 'search', [('usage', '=', 'internal')], limit=1)
+            if locations:
+                default_location_id = locations[0]
+                
+                product_variant = odoo.execute('product.product', 'search', [('product_tmpl_id', '=', template_id)])
+                if product_variant:
+                    odoo_product_id = product_variant[0]
+                    stock_qty = prod.stock_quantity
 
-                existing_quants = odoo.execute('stock.quant', 'search', [
-                    ('product_id', '=', odoo_product_id),
-                    ('location_id', '=', default_location_id)
-                ])
+                    existing_quants = odoo.execute('stock.quant', 'search', [
+                        ('product_id', '=', odoo_product_id),
+                        ('location_id', '=', default_location_id)
+                    ])
 
-                if existing_quants:
-                    quant_id = existing_quants[0]
-                    odoo.execute('stock.quant', 'write', [quant_id], {'inventory_quantity': stock_qty})
-                else:
-                    new_quant = odoo.execute('stock.quant', 'create', {
-                        'product_id': odoo_product_id,
-                        'location_id': default_location_id,
-                        'inventory_quantity': stock_qty
-                    })
-                    quant_id = new_quant[0] if isinstance(new_quant, list) else new_quant
+                    if existing_quants:
+                        quant_id = existing_quants[0]
+                        odoo.execute('stock.quant', 'write', [quant_id], {'inventory_quantity': stock_qty})
+                    else:
+                        new_quant = odoo.execute('stock.quant', 'create', {
+                            'product_id': odoo_product_id,
+                            'location_id': default_location_id,
+                            'inventory_quantity': stock_qty
+                        })
+                        quant_id = new_quant[0] if isinstance(new_quant, list) else new_quant
 
-                try:
-                    odoo.execute('stock.quant', 'action_apply_inventory_safe', [quant_id])
-                except Exception as e:
-                    logger.warning(f"Đã áp dụng kho cho {prod.name} nhưng lỗi XML-RPC: {e}")
+                    try:
+                        odoo.execute('stock.quant', 'action_apply_inventory_safe', [quant_id])
+                    except Exception as e:
+                        logger.warning(f"Đã áp dụng kho cho {prod.name} nhưng lỗi XML-RPC: {e}")
 
         return f"Sync success: {prod.name}"
 
@@ -92,10 +94,10 @@ def archive_product_in_odoo_task(self, product_id):
         existing_template = odoo.execute('product.template', 'search', [('x_django_id', '=', product_id)])
         
         if existing_template:
-            odoo.execute('product.template', 'write', existing_template, {'active': False})
-            logger.info(f"Đã Archive (Lưu trữ) sản phẩm có Django ID {product_id} trên Odoo.")
+            odoo.execute('product.template', 'write', existing_template, {'x_web_status': 'HIDDEN'})
+            logger.info(f"Đã ẨN (Hidden) sản phẩm có Django ID {product_id} trên Odoo.")
         else:
-            logger.warning(f"Không tìm thấy sản phẩm Django ID {product_id} trên Odoo để Archive.")
+            logger.warning(f"Không tìm thấy sản phẩm Django ID {product_id} trên Odoo để Ẩn.")
 
         return f"Archive success: {product_id}"
 

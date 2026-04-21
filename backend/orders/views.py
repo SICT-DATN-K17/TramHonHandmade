@@ -1,3 +1,6 @@
+import os
+import logging
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -14,7 +17,10 @@ from .serializers import (
     OrderStatusUpdateResponseSerializer,
 )
 from .permissions import IsOwnerOrArtisan
-from .services import create_order_from_request
+from .services import create_order_from_request, refund_stock_redis
+from .tasks import sync_order_to_odoo_task, cancel_order_in_odoo_task
+
+logger = logging.getLogger(__name__)
 
 class OrderViewSet(ModelViewSet):
     # Khai báo gốc, sẽ bị filter ở get_queryset
@@ -139,5 +145,38 @@ class OrderViewSet(ModelViewSet):
 
             # Phải update cả 'note' thay vì chỉ mỗi 'status'
             order.save(update_fields=['status', 'note'])
-
+        cancel_order_in_odoo_task.delay(order.id)
         return Response({"message": f"Đã hủy đơn hàng thành công. Trạng thái: {order.status}"}, status=status.HTTP_200_OK)
+
+
+class OdooWebhookOrderView(APIView):
+    permission_classes = [] # RẤT QUAN TRỌNG: Mở toang cửa không bắt Auth để Odoo có thể gọi vào
+    
+    def post(self, request):
+        # 1. Xác thực bảo mật bằng Token
+        secret_token = request.headers.get('X-Odoo-Token')
+        if secret_token != os.environ.get('ODOO_WEBHOOK_SECRET'):
+            return Response({"error": "Unauthorized. Webhook Token không khớp!"}, status=status.HTTP_403_FORBIDDEN)
+            
+        data = request.data
+        django_id = data.get('django_id')
+        new_status = data.get('status')
+        
+        if not django_id or not new_status:
+            return Response({"error": "Thiếu dữ liệu (django_id hoặc status)"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            from .models import Order
+            # Update trực tiếp trạng thái mà không cần chọc vào ORM lấy object ra (tối ưu hiệu năng)
+            updated_count = Order.objects.filter(id=django_id).update(status=new_status)
+            
+            if updated_count:
+                logger.info(f"Webhook: Đã cập nhật Order ID {django_id} thành trạng thái '{new_status}' từ Odoo.")
+            else:
+                logger.warning(f"Webhook: Odoo gửi Order ID {django_id} nhưng không tìm thấy trong DB Django.")
+                
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Lỗi xử lý Webhook Order từ Odoo: {e}")
+            return Response({"error": "Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

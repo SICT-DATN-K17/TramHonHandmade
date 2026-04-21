@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from products.views import *
-from orders.views import OrderViewSet
+from orders.views import *
 from chat.views import *
 from users.views import *
 from .views import SignatureAPIView
@@ -16,6 +16,8 @@ router.register(r'users', UserViewSet, basename='user')
 webhook_urls= [
     path('users/', OdooWebhookUserView.as_view(), name= 'webhook_users'),
     path('products/', OdooWebhookProductView.as_view(), name= 'webhook_products'),
+    path('categories/', OdooWebhookCategoryView.as_view(), name= 'webhook_categories'),
+    path('orders/', OdooWebhookOrderView.as_view(), name= 'wwebhook_orders')
 ]
 
 urlpatterns = [

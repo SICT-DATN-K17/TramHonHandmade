@@ -4,7 +4,34 @@ from .models import Order, OrderItem
 from products.models import Product
 from chat.models import Chat
 from users.models import CustomUser
+import redis
+from django.conf import settings
+from orders.tasks import sync_order_to_odoo_task
 
+redis_client = redis.StrictRedis.from_url(settings.CACHES['default']['LOCATION'], decode_responses=True)
+
+def initialize_stock_in_redis(product_id, quantity):
+    redis_client.set(f"product_stock_{product_id}", quantity)
+
+def decrement_stock_redis(product_id, quantity_to_buy):
+    stock_key = f"product_stock_{product_id}"
+    
+    if not redis_client.exists(stock_key):
+        from products.models import Product 
+        product = Product.objects.get(id=product_id)
+        initialize_stock_in_redis(product.id, product.stock_quantity)
+    
+    current_stock = redis_client.decrby(stock_key, quantity_to_buy)
+    
+    if current_stock < 0:
+        redis_client.incrby(stock_key, quantity_to_buy)
+        return False
+        
+    return True
+
+def refund_stock_redis(product_id, quantity_to_refund):
+    stock_key = f"product_stock_{product_id}"
+    redis_client.incrby(stock_key, quantity_to_refund)
 
 def create_order_from_request(validated_data, user):
     items_data = validated_data.pop('items')
@@ -26,50 +53,74 @@ def create_order_from_request(validated_data, user):
             chat = Chat.objects.get(id=chat_id)
             if chat.customer != customer:
                 raise ValidationError("Bạn không có quyền tạo đơn hàng từ cuộc hội thoại này.")
-            
             if chat.artisan != artisan:
                 raise ValidationError("Nghệ nhân của đơn hàng không khớp với cuộc hội thoại.")
-                
         except Chat.DoesNotExist:
             raise ValidationError(f"Không tìm thấy cuộc hội thoại với ID: {chat_id}")
 
-    with transaction.atomic():
-        total_price = 0
-        products_to_update = []
-        order_items_to_create = []
-
-        product_ids = [item['product'].id for item in items_data]
-        products = Product.objects.in_bulk(product_ids)
-
+    reserved_items = []
+    try:
         for item_data in items_data:
-            product = products.get(item_data['product'].id)
+            product = item_data['product']
             quantity = item_data['quantity']
+            
+            if chat:
+                stock_key = f"product_stock_{product.id}"
+                if not redis_client.exists(stock_key):
+                    initialize_stock_in_redis(product.id, product.stock_quantity)
+                
+                redis_client.decrby(stock_key, quantity)
+                reserved_items.append({'product': product, 'quantity': quantity})
+                
+            else:
+                if decrement_stock_redis(product.id, quantity):
+                    reserved_items.append({'product': product, 'quantity': quantity})
+                else:
+                    raise ValidationError(f"Sản phẩm '{product.name}' (ID: {product.id}) đã hết hàng hoặc không đủ số lượng!")
 
-            if not product:
-                raise ValidationError(f"Sản phẩm với ID {item_data['product'].id} không tồn tại.")
+        with transaction.atomic():
+            total_price = 0
+            products_to_update = []
+            order_items_to_create = []
 
-            if product.stock_quantity < quantity:
-                raise ValidationError(f"Sản phẩm '{product.name}' không đủ số lượng tồn kho.")
+            for res_item in reserved_items:
+                product = res_item['product']
+                quantity = res_item['quantity']
 
-            total_price += product.price * quantity
-            product.stock_quantity -= quantity
-            product.quantity_sold += quantity
-            products_to_update.append(product)
+                total_price += product.price * quantity
+                
+                product.quantity_sold += quantity
+                products_to_update.append(product)
 
-            order_items_to_create.append(
-                OrderItem(product=product, product_name=product.name, quantity=quantity, price_order=product.price)
+                order_items_to_create.append(
+                    OrderItem(product=product, product_name=product.name, quantity=quantity, price_order=product.price)
+                )
+            initial_status = 'PENDING_PICKUP' if chat else 'PACKAGING'
+            order = Order.objects.create(
+                customer=customer, 
+                artisan=artisan, 
+                chat=chat, 
+                total_price=total_price, 
+                status=initial_status,
+                **validated_data
             )
 
-        order = Order.objects.create(customer=customer, artisan=artisan, chat=chat, total_price=total_price, **validated_data)
+            for item in order_items_to_create:
+                item.order = order
 
-        for item in order_items_to_create:
-            item.order = order
+            OrderItem.objects.bulk_create(order_items_to_create)
+            
+            Product.objects.bulk_update(products_to_update, ['quantity_sold'])
 
-        OrderItem.objects.bulk_create(order_items_to_create)
-        Product.objects.bulk_update(products_to_update, ['stock_quantity', 'quantity_sold'])
+            if chat:
+                chat.status = 'ORDER_CREATED'
+                chat.save(update_fields=['status'])
 
-        if chat:
-            chat.status = 'ORDER_CREATED'
-            chat.save(update_fields=['status'])
+            sync_order_to_odoo_task.delay(order.id)
 
-        return order
+            return order
+
+    except Exception as e:
+        for res_item in reserved_items:
+            refund_stock_redis(res_item['product'].id, res_item['quantity'])
+        raise e

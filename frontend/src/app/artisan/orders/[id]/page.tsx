@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { 
-    Package, MapPin, CreditCard, Calendar, ChevronLeft, 
+import {
+    Package, MapPin, CreditCard, Calendar, ChevronLeft,
     CheckCircle2, XCircle, Clock, Truck, FileText, User, Phone, AlertCircle, Loader2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -24,7 +24,7 @@ const getProductImageUrl = (path: string | null | undefined): string => {
     if (!path || path === 'undefined' || path === 'null' || path === '') return '/tramhon-logo.png';
     if (path.startsWith('http')) return path;
     if (path.startsWith('//')) return `https:${path}`;
-    
+
     let normalizedPath = path;
     if (!normalizedPath.startsWith('/')) normalizedPath = '/' + normalizedPath;
     if (normalizedPath.startsWith('/uploads/uploads/')) {
@@ -53,7 +53,7 @@ export default function ArtisanOrderDetailPage() {
     const params = useParams();
     const router = useRouter();
     const axiosAuth = useAxiosAuth();
-    
+
     const orderId = Number(params.id);
     const [order, setOrder] = useState<StoredOrder | null>(null);
     const [loading, setLoading] = useState(true);
@@ -170,7 +170,7 @@ export default function ArtisanOrderDetailPage() {
     const StatusIcon = statusConfig[order.status].icon;
     const isCancelled = order.status === 'cancelled';
     const isDelivered = order.status === 'delivered';
-    
+
     const rawNote = order.shippingAddress.note || "";
     const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
     const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
@@ -179,9 +179,9 @@ export default function ArtisanOrderDetailPage() {
     return (
         <div className="space-y-6 pb-10">
             <Toaster position="top-right" />
-            
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <Button 
+                <Button
                     variant="outline"
                     onClick={() => router.push('/artisan/orders')}
                     className="w-max border-[#E8D5B5] text-[#3F2E23] hover:bg-[#FFF8F0] shadow-sm"
@@ -236,7 +236,7 @@ export default function ArtisanOrderDetailPage() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                
+
                 <div className="lg:col-span-3 space-y-6">
                     <div className="bg-white rounded-2xl border border-[#E8D5B5] shadow-sm overflow-hidden flex flex-col">
                         <div className="px-5 py-4 border-b border-[#E8D5B5] bg-[#FFF8F0] flex items-center justify-between">
@@ -262,7 +262,7 @@ export default function ArtisanOrderDetailPage() {
                                 </div>
                             ))}
                         </div>
-                        
+
                         <div className="bg-[#FDFBF7] p-5 border-t border-[#E8D5B5]">
                             <div className="space-y-2.5 text-sm text-[#6B4F3E] font-medium">
                                 <div className="flex justify-between items-center">
@@ -296,7 +296,7 @@ export default function ArtisanOrderDetailPage() {
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Số điện thoại</p>
-                                <p className="font-bold text-[#3F2E23] text-sm flex items-center gap-1.5"><Phone size={14} className="text-[#6B4F3E]"/> {order.phone}</p>
+                                <p className="font-bold text-[#3F2E23] text-sm flex items-center gap-1.5"><Phone size={14} className="text-[#6B4F3E]" /> {order.phone}</p>
                             </div>
                         </div>
                     </div>

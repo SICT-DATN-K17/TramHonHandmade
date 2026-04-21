@@ -14,8 +14,19 @@
                 <xpath expr="//field[@name='parent_id']" position="after">
                     <field name="x_django_id" readonly="1" string="Django ID"/>
                     <field name="x_slug" readonly="1"/>
+                    <field name="x_web_status" decoration-success="x_web_status == 'ACTIVE'" decoration-danger="x_web_status == 'HIDDEN'"/>
                 </xpath>
-                
+            </field>
+        </record>
+        <record id="view_category_tree_inherit_tramhon" model="ir.ui.view">
+            <field name="name">product.category.tree.inherit.tramhon</field>
+            <field name="model">product.category</field>
+            <field name="inherit_id" ref="product.product_category_list_view"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='display_name']" position="after">
+                    <field name="x_slug" string="Slug (Django)"/>
+                    <field name="x_web_status" string="Trạng thái Web" widget="badge" decoration-success="x_web_status == 'ACTIVE'" decoration-danger="x_web_status == 'HIDDEN'"/>
+                </xpath>
             </field>
         </record>
     </data>
