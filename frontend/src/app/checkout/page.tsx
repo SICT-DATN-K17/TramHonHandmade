@@ -144,14 +144,30 @@ function CheckoutContent() {
                 router.push(`/checkout/success?orderId=${orderId}&orderNumber=${orderNumber}`);
             }, 1500);
 
-        } catch (error: unknown) {
+        } catch (error: any) {
             toast.dismiss(loadingToast);
-            console.error('Order submission error:', error);
-            const err = error as any;
-            if (err.response && err.response.status === 400 && err.response.data) {
-                toast.error("Thôngடல் không hợp lệ. Vui lòng kiểm tra lại.");
+            
+            // In thẳng lỗi ra F12 để ae mình soi
+            console.error('Chi tiết lỗi từ Backend:', error.response?.data || error);
+
+            if (error.response?.data) {
+                const backendErrors = error.response.data;
+                
+                // Nếu Backend trả về dạng mảng lỗi (Validation Error của Serializer)
+                // Ví dụ: {"phone_number": ["Số điện thoại không hợp lệ"]}
+                if (typeof backendErrors === 'object' && !Array.isArray(backendErrors)) {
+                    const firstKey = Object.keys(backendErrors)[0];
+                    const firstErrorMsg = Array.isArray(backendErrors[firstKey]) 
+                        ? backendErrors[firstKey][0] 
+                        : backendErrors[firstKey];
+                    toast.error(`Lỗi: ${firstErrorMsg}`);
+                } else if (Array.isArray(backendErrors) && backendErrors.length > 0) {
+                    toast.error(backendErrors[0]);
+                } else {
+                    toast.error('Có lỗi xảy ra khi đặt hàng.');
+                }
             } else {
-                toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi đặt hàng.');
+                toast.error('Lỗi kết nối đến server.');
             }
         } finally {
             setIsSubmitting(false);

@@ -19,7 +19,6 @@ services:
   web:
     image: odoo:16.0
     container_name: tramhon_odoo16
-    command: odoo --workers=2
     depends_on:
       - db
     env_file:

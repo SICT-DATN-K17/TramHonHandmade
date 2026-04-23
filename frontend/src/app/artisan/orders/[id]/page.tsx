@@ -6,16 +6,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
     Package, MapPin, CreditCard, Calendar, ChevronLeft,
-    CheckCircle2, XCircle, Clock, Truck, FileText, User, Phone, AlertCircle, Loader2
+    CheckCircle2, XCircle, Clock, Truck, FileText, User, Phone, AlertCircle, Loader2, AlertTriangle, X
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import { RawOrderDetail } from '@/types/apiTypes';
-import type { StoredOrder, StoredOrderStatus } from '@/lib/ordersStorage';
+import type { StoredOrder } from '@/lib/ordersStorage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import toast, { Toaster } from 'react-hot-toast';
-import { mapFrontendToBackendStatus, mapBackendToFrontendStatus } from '@/utils/orderStatusMapper';
 import type { PaymentMethod } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -35,12 +34,15 @@ const getProductImageUrl = (path: string | null | undefined): string => {
     return `${API_URL}${normalizedPath}`;
 };
 
+// Cập nhật bộ trạng thái chuẩn
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
-    pending: { label: 'Chờ xử lý', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
-    processing: { label: 'Đang xử lý', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
-    shipped: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    delivered: { label: 'Đã giao', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
-    cancelled: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
+    PENDING_PICKUP: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
+    PACKAGING: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
+    SHIPPING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    DELIVERED: { label: 'Đã nhận hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
+    COMPLETED: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
+    CANCELLED: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
+    REFUNDED: { label: 'Đã hoàn tiền', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: XCircle },
 };
 
 const paymentLabels: Record<string, string> = {
@@ -58,7 +60,11 @@ export default function ArtisanOrderDetailPage() {
     const [order, setOrder] = useState<StoredOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isUpdating, setIsUpdating] = useState(false);
+
+    // State cho Modal Hủy đơn
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
+    const [isCancelling, setIsCancelling] = useState(false);
 
     const fetchOrder = async () => {
         try {
@@ -74,18 +80,12 @@ export default function ArtisanOrderDetailPage() {
                 }
             };
 
-            const normalizeStatus = (status: StoredOrderStatus): StoredOrderStatus => {
-                if (status === 'confirmed') return 'pending';
-                if (status === 'shipped') return 'processing';
-                return status;
-            };
-
-            const mappedOrder: StoredOrder = {
+            const mappedOrder: any = {
                 id: orderData.id,
                 orderNumber: `ART-${orderData.id}`,
                 customerName: orderData.customerName,
                 phone: orderData.customerPhone,
-                status: normalizeStatus(mapBackendToFrontendStatus(orderData.status as any)),
+                status: orderData.status?.toUpperCase() || 'PENDING_PICKUP',
                 createdAt: orderData.orderDate,
                 subtotal: Number(orderData.totalPrice || 0),
                 shippingFee: Number(orderData.shippingFee || 0),
@@ -125,22 +125,27 @@ export default function ArtisanOrderDetailPage() {
         fetchOrder();
     }, [orderId, axiosAuth]);
 
-    const handleStatusChange = async (newStatus: StoredOrderStatus) => {
-        if (!order) return;
-        setIsUpdating(true);
+    const handleCancelOrder = async () => {
+        if (!cancelReason.trim()) {
+            toast.error('Vui lòng nhập lý do hủy đơn hàng!');
+            return;
+        }
+
+        setIsCancelling(true);
         try {
-            const backendStatus = mapFrontendToBackendStatus(newStatus);
-            await axiosAuth.put(`/orders/${orderId}/status/`, null, {
-                params: { status: backendStatus }
+            await axiosAuth.put(`/orders/${orderId}/cancel/`, {
+                note: `Lý do hủy đơn: ${cancelReason.trim()}`
             });
-            toast.success('Cập nhật trạng thái đơn hàng thành công');
-            await fetchOrder();
+            toast.success('Đã hủy đơn hàng thành công!');
+            setIsCancelModalOpen(false);
+            setCancelReason('');
+            await fetchOrder(); // Refresh lại data
         } catch (error: any) {
-            console.error('Error updating order status:', error);
-            const msg = error.response?.data?.message || error.message || 'Không thể cập nhật trạng thái';
+            console.error('Error cancelling order:', error);
+            const msg = error.response?.data?.message || 'Không thể hủy đơn hàng lúc này';
             toast.error(msg);
         } finally {
-            setIsUpdating(false);
+            setIsCancelling(false);
         }
     };
 
@@ -167,14 +172,17 @@ export default function ArtisanOrderDetailPage() {
         );
     }
 
-    const StatusIcon = statusConfig[order.status].icon;
-    const isCancelled = order.status === 'cancelled';
-    const isDelivered = order.status === 'delivered';
+    const currentStatusConfig = statusConfig[order.status] || { label: order.status, bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: Package };
+    const StatusIcon = currentStatusConfig.icon;
+
+    // Check xem đơn có nằm trong nhóm trạng thái cho phép hủy không
+    const canCancel = !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status);
+    const isCancelled = order.status === 'CANCELLED';
 
     const rawNote = order.shippingAddress.note || "";
     const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
-    const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
-    const normalNoteText = hasCancelReason ? "" : rawNote;
+    const cancelReasonText = hasCancelReason ? rawNote.split("Lý do hủy đơn:").pop()?.trim() : "";
+    const normalNoteText = hasCancelReason ? rawNote.split("Lý do hủy đơn:")[0].replace("---", "").trim() : rawNote;
 
     return (
         <div className="space-y-6 pb-10">
@@ -189,21 +197,17 @@ export default function ArtisanOrderDetailPage() {
                     <ChevronLeft size={16} className="mr-1.5" /> Quay lại danh sách
                 </Button>
 
-                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-[#E8D5B5] shadow-sm">
-                    <span className="text-sm font-bold text-[#6B4F3E]">Trạng thái:</span>
-                    <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(e.target.value as StoredOrderStatus)}
-                        className={`rounded-md border ${statusConfig[order.status].border} ${statusConfig[order.status].bg} ${statusConfig[order.status].text} px-3 py-1.5 text-sm font-bold shadow-sm focus:ring-[#D96C39] focus:border-[#D96C39] cursor-pointer outline-none transition-colors`}
-                        disabled={isCancelled || isDelivered || isUpdating}
-                    >
-                        {(['pending', 'processing', 'delivered', 'cancelled'] as StoredOrderStatus[]).map((status) => (
-                            <option key={status} value={status}>
-                                {statusConfig[status]?.label}
-                            </option>
-                        ))}
-                    </select>
-                    {isUpdating && <Loader2 size={16} className="animate-spin text-[#D96C39]" />}
+                <div className="flex items-center gap-3">
+                    {/* Chỉ hiện nút Hủy đơn nếu đơn hàng ở trạng thái hợp lệ */}
+                    {canCancel && (
+                        <Button
+                            onClick={() => setIsCancelModalOpen(true)}
+                            variant="outline"
+                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 shadow-sm"
+                        >
+                            <XCircle size={16} className="mr-1.5" /> Từ chối / Hủy đơn
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -216,8 +220,9 @@ export default function ArtisanOrderDetailPage() {
                         <Calendar size={14} /> {formatDate(order.createdAt)}
                     </p>
                 </div>
-                <div className={`px-4 py-2 rounded-full border ${statusConfig[order.status].bg} ${statusConfig[order.status].border} ${statusConfig[order.status].text} text-sm font-bold flex items-center gap-1.5 shadow-sm`}>
-                    <StatusIcon size={16} /> {statusConfig[order.status].label}
+                {/* Trạng thái giờ chỉ hiển thị, không được phép chọn nữa */}
+                <div className={`px-4 py-2 rounded-full border ${currentStatusConfig.bg} ${currentStatusConfig.border} ${currentStatusConfig.text} text-sm font-bold flex items-center gap-1.5 shadow-sm`}>
+                    <StatusIcon size={16} /> {currentStatusConfig.label}
                 </div>
             </div>
 
@@ -227,8 +232,8 @@ export default function ArtisanOrderDetailPage() {
                         <XCircle className="text-red-600 w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-base font-bold text-red-700">Đơn hàng đã bị khách hàng hủy</h2>
-                        {hasCancelReason && (
+                        <h2 className="text-base font-bold text-red-700">Đơn hàng đã bị hủy</h2>
+                        {cancelReasonText && (
                             <p className="text-sm text-red-600 mt-1">Lý do: <span className="font-bold">{cancelReasonText}</span></p>
                         )}
                     </div>
@@ -236,7 +241,6 @@ export default function ArtisanOrderDetailPage() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
                 <div className="lg:col-span-3 space-y-6">
                     <div className="bg-white rounded-2xl border border-[#E8D5B5] shadow-sm overflow-hidden flex flex-col">
                         <div className="px-5 py-4 border-b border-[#E8D5B5] bg-[#FFF8F0] flex items-center justify-between">
@@ -346,6 +350,65 @@ export default function ArtisanOrderDetailPage() {
                     )}
                 </div>
             </div>
+
+            {/* MODAL HỦY ĐƠN */}
+            {isCancelModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl scale-in-95 animate-in">
+                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-red-50/50">
+                            <h3 className="font-bold text-red-700 flex items-center gap-2 text-lg">
+                                <AlertTriangle size={20} className="text-red-600" />
+                                Xác nhận hủy đơn hàng
+                            </h3>
+                            <button
+                                onClick={() => setIsCancelModalOpen(false)}
+                                className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="mb-4">
+                                <label className="block text-sm font-bold text-[#3F2E23] mb-2">
+                                    Lý do hủy đơn <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    className="w-full rounded-xl border border-gray-300 p-3 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none h-28 transition-shadow"
+                                    placeholder="Vui lòng nhập lý do (VD: Hết nguyên liệu, Khách yêu cầu hủy, ...)"
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                ></textarea>
+                            </div>
+
+                            <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl flex gap-2">
+                                <span className="text-sm">💡</span>
+                                <p className="text-xs text-orange-800 leading-relaxed font-medium">
+                                    Lưu ý: Hủy đơn hàng sẽ tự động gửi thông báo cho khách hàng và trả lại tồn kho. Hành động này không thể hoàn tác!
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsCancelModalOpen(false)}
+                                disabled={isCancelling}
+                                className="border-gray-300 text-[#3F2E23] font-bold rounded-xl h-11"
+                            >
+                                Quay lại
+                            </Button>
+                            <Button
+                                onClick={handleCancelOrder}
+                                disabled={isCancelling || !cancelReason.trim()}
+                                className="bg-red-600 hover:bg-red-700 text-white min-w-[140px] font-bold rounded-xl h-11 shadow-md"
+                            >
+                                {isCancelling ? <Loader2 className="animate-spin h-5 w-5" /> : 'Xác nhận Hủy đơn'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

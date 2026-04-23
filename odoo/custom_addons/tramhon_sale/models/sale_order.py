@@ -14,13 +14,24 @@ class SaleOrder(models.Model):
     x_web_phone = fields.Char(string='SĐT (Web)')
     x_web_note = fields.Text(string='Ghi chú của khách (Web)')
     x_payment_method = fields.Char(string='Phương thức thanh toán')
-    x_web_status = fields.Char(string='Trạng thái Web', help="VD: PENDING, COMPLETED...")
+    x_web_status = fields.Selection([
+        ('PENDING_PICKUP', 'Đang chờ lấy hàng'),
+        ('PACKAGING', 'Đang đóng gói hàng'),
+        ('SHIPPING', 'Đang giao hàng'),
+        ('DELIVERED', 'Đã nhận hàng'),
+        ('COMPLETED', 'Hoàn thành'),
+        ('CANCELLED', 'Đã hủy'),
+        ('REFUNDED', 'Đã hoàn tiền'),
+    ], string='Trạng thái Web (Django)', default='PENDING_PICKUP', tracking=True)
 
     def write(self, vals):
+        if vals.get('state') == 'cancel':
+            vals['x_web_status'] = 'CANCELLED'
+
         res = super(SaleOrder, self).write(vals)
         
-        # Bắt sự kiện: Nếu trạng thái đơn (state) thay đổi thì bắn Webhook
-        if 'state' in vals or 'x_web_status' in vals:
+        # CỰC KỲ QUAN TRỌNG: CHỈ bắn Webhook khi x_web_status THỰC SỰ bị thay đổi
+        if 'x_web_status' in vals:
             for record in self:
                 if record.x_django_id:
                     record._send_webhook_to_django()
@@ -30,25 +41,14 @@ class SaleOrder(models.Model):
         django_url = os.environ.get('DJANGO_WEBHOOK_URL')
         secret_token = os.environ.get('ODOO_WEBHOOK_SECRET')
 
-        if not django_url or not secret_token:
+        if not django_url or not secret_token or not self.x_web_status:
             return
 
         endpoint = f"{django_url.rstrip('/')}/orders/" 
 
-        mapped_status = None
-        # Chỉ bắn Webhook nếu Sale Order bị HỦY
-        if self.state == 'cancel':
-            mapped_status = 'CANCELLED'
-            
-        if self.x_web_status and 'x_web_status' in self._fields:
-            mapped_status = self.x_web_status
-
-        if not mapped_status:
-            return
-
         payload = {
             'django_id': self.x_django_id,
-            'status': mapped_status,
+            'status': self.x_web_status,
         }
 
         headers = {
@@ -58,5 +58,6 @@ class SaleOrder(models.Model):
 
         try:
             requests.post(endpoint, json=payload, headers=headers, timeout=3)
+            _logger.info(f"Đã bắn Webhook SO {self.name} -> {self.x_web_status} cho Django ID {self.x_django_id}")
         except Exception as e:
             _logger.error(f"Lỗi bắn Webhook Order {self.x_django_id} sang Django: {e}")

@@ -93,6 +93,7 @@ def cancel_order_in_odoo_task(self, order_id):
             return
 
         so_id = so_search[0]
+        update_data = {'x_web_status': 'CANCELLED'}
         if order.note:
             odoo.execute('sale.order', 'write', [so_id], {'x_web_note': order.note})
             logger.info(f"Đã cập nhật lý do hủy vào x_web_note cho SO {so_id}")
@@ -108,23 +109,78 @@ def cancel_order_in_odoo_task(self, order_id):
             pickings = odoo.execute('stock.picking', 'read', so_data['picking_ids'], ['state'])
             for picking in pickings:
                 if picking['state'] == 'done':
-                    # Gọi Wizard Trả hàng của Odoo
-                    return_wizard_id = odoo.execute('stock.return.picking', 'create', {'picking_id': picking['id']})
-                    # Thực thi lệnh Trả hàng (Sinh ra một Phiếu Nhập Kho chờ thủ kho nhận lại)
-                    odoo.execute('stock.return.picking', 'create_returns', [return_wizard_id])
-                    logger.info(f"Đã tạo Phiếu Trả Hàng thành công cho Picking {picking['id']}")
+                    try:
+                        moves = odoo.execute('stock.move', 'search_read', [
+                            ('picking_id', '=', picking['id']), 
+                            ('state', '=', 'done')
+                        ], ['product_id', 'quantity_done'])
+                        
+                        return_moves = []
+                        for move in moves:
+                            if move.get('quantity_done', 0) > 0:
+                                return_moves.append((0, 0, {
+                                    'product_id': move['product_id'][0],
+                                    'quantity': move['quantity_done'],
+                                    'move_id': move['id']
+                                }))
 
+                        if not return_moves:
+                            logger.info(f"Bỏ qua Picking {picking['id']} vì không có số lượng thực xuất.")
+                            continue
+
+                        # A. Tạo Wizard Trả hàng
+                        return_wizard_id = odoo.execute('stock.return.picking', 'create', {
+                            'picking_id': picking['id'],
+                            'product_return_moves': return_moves
+                        })
+                        
+                        # B. Thực thi tạo Phiếu Trả Hàng mới VÀ lấy luôn ID của phiếu vừa tạo
+                        return_res = odoo.execute('stock.return.picking', 'create_returns', [return_wizard_id])
+                        new_picking_id = return_res.get('res_id')
+                        
+                        if new_picking_id:
+                            logger.info(f"Đã tạo Phiếu Trả Hàng ID {new_picking_id}. Đang tiến hành tự động Xác nhận...")
+                            
+                            # C. Bắt Odoo chuẩn bị hàng
+                            odoo.execute('stock.picking', 'action_assign', [new_picking_id])
+                            
+                            # D. Điền số lượng "Đã hoàn thành" (quantity_done) cho từng sản phẩm
+                            # (Bước này để tránh Odoo hiện popup hỏi "Bạn có muốn tạo phần đọng lại không?")
+                            new_moves = odoo.execute('stock.move', 'search', [('picking_id', '=', new_picking_id)])
+                            for move_id in new_moves:
+                                move_data = odoo.execute('stock.move', 'read', [move_id], ['product_uom_qty'])[0]
+                                odoo.execute('stock.move', 'write', [move_id], {'quantity_done': move_data['product_uom_qty']})
+                                
+                            # E. BẤM NÚT XÁC NHẬN (VALIDATE) ĐỂ CỘNG LẠI TỒN KHO!
+                            odoo.execute('stock.picking', 'button_validate', [new_picking_id])
+                            logger.info(f"✅ Đã HOÀN TỒN KHO thành công cho Phiếu Trả Hàng {new_picking_id}")
+                            
+                    except Exception as e:
+                        logger.error(f"Lỗi khi xử lý trả hàng cho Picking {picking['id']}: {e}")
         # =========================================================
         # 3. HỦY SALE ORDER VÀ GỬI EMAIL TỰ ĐỘNG
         # =========================================================
         try:
-            # Gọi Wizard Hủy Đơn (Giống hệt việc bấm nút Gửi & Hủy trên giao diện Odoo)
-            cancel_wizard_id = odoo.execute('sale.order.cancel', 'create', {'order_id': so_id})
+            # A. Tìm ID của Mẫu Email (Template) Hủy đơn mặc định của Odoo
+            template_records = odoo.execute('ir.model.data', 'search_read', 
+                [('module', '=', 'sale'), ('name', '=', 'mail_template_sale_cancellation')], 
+                ['res_id']
+            )
+            template_id = template_records[0]['res_id'] if template_records else False
+
+            # B. Khởi tạo Wizard kèm theo Template ID
+            wizard_vals = {'order_id': so_id}
+            if template_id:
+                wizard_vals['template_id'] = template_id
+
+            cancel_wizard_id = odoo.execute('sale.order.cancel', 'create', wizard_vals)
+            
+            # C. BẤM NÚT "GỬI VÀ HỦY"
             odoo.execute('sale.order.cancel', 'action_send_mail_and_cancel', [cancel_wizard_id])
-            logger.info(f"Đã HỦY SO {so_id} và TỰ ĐỘNG GỬI EMAIL cho khách.")
+            logger.info(f"Đã HỦY SO {so_id} và TỰ ĐỘNG GỬI EMAIL cho khách (Template ID: {template_id}).")
             
         except Exception as e:
-            # Fallback an toàn phòng khi Odoo version cũ không có wizard này
+            # Fallback an toàn phòng khi lỗi
             logger.warning(f"Không thể dùng wizard gửi mail, fallback về lệnh cancel gốc: {e}")
             odoo.execute('sale.order', 'action_cancel', [so_id])
             logger.info(f"Đã hủy SO {so_id} bằng action_cancel tiêu chuẩn.")

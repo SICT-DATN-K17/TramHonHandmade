@@ -11,6 +11,7 @@ from .models import *
 from .serializers import *
 from .permissions import IsArtisanOrReadOnly
 from .paginations import CustomPagination
+from orders.services import initialize_stock_in_redis
 import logging
 
 logger = logging.getLogger(__name__)
@@ -149,7 +150,9 @@ class OdooWebhookProductView(APIView):
             if 'price' in data: update_data['price'] = data['price']
             if 'description' in data: update_data['description'] = data['description'] if data['description'] else ""
             if 'active' in data: update_data['status'] = 'ACTIVE' if data['active'] else 'HIDDEN'
-            if 'stock_quantity' in data: update_data['stock_quantity'] = data['stock_quantity']
+            if 'stock_quantity' in data: 
+                update_data['stock_quantity'] = data['stock_quantity']
+                initialize_stock_in_redis(django_id, data['stock_quantity'])
             if 'category_id' in data and data['category_id']: 
                 update_data['category_id'] = data['category_id']
             if 'artisan_id' in data and data['artisan_id']: 

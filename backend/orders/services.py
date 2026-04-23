@@ -11,15 +11,21 @@ from orders.tasks import sync_order_to_odoo_task
 redis_client = redis.StrictRedis.from_url(settings.CACHES['default']['LOCATION'], decode_responses=True)
 
 def initialize_stock_in_redis(product_id, quantity):
-    redis_client.set(f"product_stock_{product_id}", quantity)
+    safe_qty = int(float(quantity))
+    redis_client.set(f"product_stock_{product_id}", safe_qty)
 
 def decrement_stock_redis(product_id, quantity_to_buy):
     stock_key = f"product_stock_{product_id}"
     
-    if not redis_client.exists(stock_key):
+    current_val = redis_client.get(stock_key)
+    
+    if current_val is None:
         from products.models import Product 
         product = Product.objects.get(id=product_id)
         initialize_stock_in_redis(product.id, product.stock_quantity)
+    elif '.' in str(current_val):
+        # Auto-heal: Tự động sửa lỗi nếu Redis đang kẹt số thập phân
+        initialize_stock_in_redis(product_id, current_val)
     
     current_stock = redis_client.decrby(stock_key, quantity_to_buy)
     
@@ -31,7 +37,17 @@ def decrement_stock_redis(product_id, quantity_to_buy):
 
 def refund_stock_redis(product_id, quantity_to_refund):
     stock_key = f"product_stock_{product_id}"
-    redis_client.incrby(stock_key, quantity_to_refund)
+    current_val = redis_client.get(stock_key)
+    
+    if current_val is None:
+        from products.models import Product 
+        product = Product.objects.get(id=product_id)
+        initialize_stock_in_redis(product.id, product.stock_quantity)
+    elif '.' in str(current_val):
+        initialize_stock_in_redis(product_id, current_val)
+        
+    safe_qty = int(float(quantity_to_refund))
+    redis_client.incrby(stock_key, safe_qty)
 
 def create_order_from_request(validated_data, user):
     items_data = validated_data.pop('items')
@@ -66,8 +82,12 @@ def create_order_from_request(validated_data, user):
             
             if chat:
                 stock_key = f"product_stock_{product.id}"
-                if not redis_client.exists(stock_key):
+                current_val = redis_client.get(stock_key)
+                
+                if current_val is None:
                     initialize_stock_in_redis(product.id, product.stock_quantity)
+                elif '.' in str(current_val):
+                    initialize_stock_in_redis(product.id, current_val)
                 
                 redis_client.decrby(stock_key, quantity)
                 reserved_items.append({'product': product, 'quantity': quantity})
