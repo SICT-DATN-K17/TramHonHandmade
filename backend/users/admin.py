@@ -17,6 +17,11 @@ class OtpAdmin(admin.ModelAdmin):
     list_filter= ['email']
 
 
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'phone_number', 'user']
+    search_fields = ['full_name', 'phone_number', 'user__email']
+
 
 admin.site.register(CustomUser, UserAdmin)
 admin.site.register(Otp, OtpAdmin)
+admin.site.register(Address, AddressAdmin)

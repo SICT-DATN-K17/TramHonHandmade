@@ -193,10 +193,11 @@ function CheckoutSuccessContent() {
                                     <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Mã đơn hàng</p>
                                     <p className="font-extrabold text-[#3F2E23] text-lg">{order.orderNumber}</p>
                                 </div>
+                                {/* ĐÃ XÓA TRẠNG THÁI "ĐANG CHỜ..." VÀ THAY BẰNG LỜI NHẮN THÂN THIỆN */}
                                 <div>
-                                    <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Trạng thái</p>
-                                    <p className="font-bold text-orange-600 bg-orange-50 inline-block px-3 py-1 rounded-md border border-orange-200">
-                                        {getStatusName(order.status)}
+                                    <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Tiến độ</p>
+                                    <p className="font-medium text-[#D96C39] bg-[#FFF8F0] inline-block px-3 py-1.5 rounded-md border border-[#E8D5B5] text-sm flex items-center gap-1.5">
+                                        <CheckCircle2 size={16} /> Đã tiếp nhận đơn hàng thành công!
                                     </p>
                                 </div>
                             </div>
@@ -261,15 +262,15 @@ function CheckoutSuccessContent() {
                             {/* Shipping Address */}
                             <div>
                                 <h3 className="text-sm font-bold text-[#6B4F3E] uppercase tracking-wider mb-3 pb-2 border-b border-[#E8D5B5]">Giao hàng đến</h3>
-                                <div className="bg-[#FDFBF7] p-5 rounded-xl border border-[#E8D5B5]">
-                                    <p className="font-bold text-[#3F2E23] text-lg mb-2">{order.shippingAddress.fullName}</p>
-                                    <p className="text-sm text-[#6B4F3E] mb-1 flex items-center gap-2">📞 {order.shippingAddress.phone}</p>
-                                    <p className="text-sm text-[#6B4F3E] mb-2 leading-relaxed">📍 {order.shippingAddress.address}</p>
-                                    {order.shippingAddress.note && (
-                                        <p className="text-sm mt-3 pt-3 border-t border-[#E8D5B5] text-[#D96C39] font-medium">
-                                            📝 Ghi chú: {order.shippingAddress.note}
-                                        </p>
-                                    )}
+                                <div className="bg-[#FDFBF7] p-5 rounded-xl border border-[#E8D5B5] space-y-2">
+                                    <div className="flex justify-between text-sm font-medium text-[#6B4F3E]">
+                                        <span>Tạm tính:</span>
+                                        <span>₫{order.subtotal.toLocaleString('vi-VN')}</span>
+                                    </div>
+                                    <div className="flex justify-between items-end pt-3 mt-3 border-t border-[#E8D5B5] border-dashed">
+                                        <span className="font-bold text-[#3F2E23]">Tổng cộng:</span>
+                                        <span className="text-2xl font-black text-[#D96C39]">₫{order.total.toLocaleString('vi-VN')}</span>
+                                    </div>
                                 </div>
                             </div>
 

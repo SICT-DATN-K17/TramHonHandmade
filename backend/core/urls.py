@@ -22,6 +22,7 @@ webhook_urls= [
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('my-address/', MyAddressView.as_view(), name='my-address'),
     path('sign-cloudinary-upload/', SignatureAPIView.as_view(), name='sign-cloudinary-upload'),
     path('webhooks/', include(webhook_urls)),
 ]

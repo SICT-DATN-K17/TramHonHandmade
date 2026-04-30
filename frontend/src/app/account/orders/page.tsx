@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import useMyOrders from "@/hooks/useMyOrders";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, Package, Calendar, ChevronRight, XCircle, AlertTriangle, X, AlertCircle as AlertCircleIcon } from "lucide-react";
+import { Loader2, Package, Calendar, ChevronRight, AlertCircle as AlertCircleIcon } from "lucide-react";
 import { Header, Footer } from "@/components/common";
-import toast, { Toaster } from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -27,66 +27,9 @@ const getProductImageUrl = (path: string | null | undefined): string => {
     return `${API_URL}${normalizedPath}`;
 };
 
-const CANCEL_REASONS = [
-    "Muốn thay đổi địa chỉ giao hàng",
-    "Muốn thay đổi sản phẩm/số lượng",
-    "Tìm thấy giá rẻ hơn ở nơi khác",
-    "Đổi ý không muốn mua nữa",
-    "Thời gian giao hàng quá lâu",
-    "Khác"
-];
-
 export default function MyOrdersPage() {
-    const { orders, isLoading, error, cancelOrder } = useMyOrders();
-
-    // --- STATE FOR CANCEL MODAL ---
-    const [cancelModalData, setCancelModalData] = useState<{ isOpen: boolean, orderId: number | null }>({ isOpen: false, orderId: null });
-    const [selectedReason, setSelectedReason] = useState<string>("");
-    const [customReason, setCustomReason] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState(false);
-
-    // Mở Modal Hủy
-    const openCancelModal = (orderId: number) => {
-        setCancelModalData({ isOpen: true, orderId });
-        setSelectedReason("");
-        setCustomReason("");
-    };
-
-    // Đóng Modal
-    const closeCancelModal = () => {
-        if (!isCancelling) {
-            setCancelModalData({ isOpen: false, orderId: null });
-        }
-    };
-
-    // Thực thi Hủy
-    const performCancellation = async () => {
-        if (!selectedReason) {
-            toast.error("Vui lòng chọn lý do hủy đơn!");
-            return;
-        }
-        
-        if (selectedReason === "Khác" && !customReason.trim()) {
-            toast.error("Vui lòng nhập lý do cụ thể!");
-            return;
-        }
-
-        const finalReason = selectedReason === "Khác" ? customReason.trim() : selectedReason;
-        const cancelNoteText = `Lý do hủy đơn: ${finalReason}`;
-
-        setIsCancelling(true);
-        const toastId = toast.loading('Đang xử lý hủy đơn...');
-
-        try {
-            await cancelOrder(cancelModalData.orderId!, cancelNoteText);
-            toast.success(<b>Đã hủy đơn hàng #{cancelModalData.orderId} thành công!</b>, { id: toastId });
-            closeCancelModal();
-        } catch (err: any) {
-            toast.error(<b>{err.message || 'Lỗi khi hủy đơn'}</b>, { id: toastId });
-        } finally {
-            setIsCancelling(false);
-        }
-    };
+    // Đã loại bỏ cancelOrder và các state của Modal Hủy
+    const { orders, isLoading, error } = useMyOrders();
 
     // Hàm helper render badge
     const renderStatusBadge = (status: string) => {
@@ -177,7 +120,7 @@ export default function MyOrdersPage() {
                                         <div className="flex items-center gap-3">{renderStatusBadge(order.status)}</div>
                                     </div>
 
-                                    {/* HIỂN THỊ LÝ DO HỦY NGAY TRONG COMPONENT NÀY NẾU LÀ ĐƠN HỦY */}
+                                    {/* Lý do hủy đơn */}
                                     {isCancelled && hasCancelReason && (
                                         <div className="px-6 pt-5">
                                             <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start shadow-sm">
@@ -218,7 +161,7 @@ export default function MyOrdersPage() {
                                         </div>
                                     </div>
 
-                                    {/* Footer Order */}
+                                    {/* Footer Order (Đã loại bỏ nút Hủy Đơn) */}
                                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E8D5B5] px-6 py-5 bg-gray-50/30">
                                         <div className="flex items-center gap-3">
                                             <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
@@ -228,17 +171,6 @@ export default function MyOrdersPage() {
                                         </div>
 
                                         <div className="flex items-center gap-3 w-full sm:w-auto">
-                                            {(!['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status?.toUpperCase())) && (
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={() => openCancelModal(order.id)}
-                                                    className="flex-1 sm:flex-none border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-bold h-11 rounded-xl transition-all"
-                                                >
-                                                    <XCircle size={18} className="mr-1.5" /> Hủy đơn
-                                                </Button>
-                                            )}
-
-                                            {/* Sửa lại Link để trỏ đúng vào account/orders/[id] */}
                                             <Link href={`/account/orders/${order.id}`} className="flex-1 sm:flex-none">
                                                 <Button className="w-full sm:w-auto text-white font-bold h-11 rounded-xl shadow-md hover:bg-black hover:shadow-lg transition-all" style={{ backgroundColor: '#3F2E23' }}>
                                                     Xem chi tiết <ChevronRight size={18} className="ml-1" />
@@ -252,77 +184,6 @@ export default function MyOrdersPage() {
                     </div>
                 )}
             </main>
-
-            {/* --- MODAL HỦY ĐƠN HÀNG XỊN SÒ --- */}
-            {cancelModalData.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#E8D5B5] overflow-hidden flex flex-col max-h-[90vh]">
-                        {/* Modal Header */}
-                        <div className="bg-red-50 p-5 flex items-center justify-between border-b border-red-100 shrink-0">
-                            <h3 className="font-bold flex items-center gap-2 text-red-700 text-lg">
-                                <AlertTriangle size={22} className="text-red-600" /> Lý do hủy đơn #{cancelModalData.orderId}
-                            </h3>
-                            <button onClick={closeCancelModal} disabled={isCancelling} className="text-gray-400 hover:text-red-600 transition bg-white rounded-full p-1.5 shadow-sm border border-gray-200">
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div className="p-6 overflow-y-auto custom-scrollbar">
-                            <p className="text-sm font-medium text-[#6B4F3E] mb-4">Vui lòng cho chúng tôi biết lý do bạn muốn hủy đơn hàng này nhé:</p>
-                            
-                            <div className="space-y-3">
-                                {CANCEL_REASONS.map((reason, idx) => (
-                                    <label key={idx} className={`flex items-start p-4 border-2 rounded-xl cursor-pointer transition-all ${selectedReason === reason ? 'border-red-500 bg-red-50/50' : 'border-[#E8D5B5] hover:bg-gray-50'}`}>
-                                        <input
-                                            type="radio"
-                                            name="cancelReason"
-                                            value={reason}
-                                            checked={selectedReason === reason}
-                                            onChange={(e) => setSelectedReason(e.target.value)}
-                                            className="mt-0.5 w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300 cursor-pointer"
-                                            disabled={isCancelling}
-                                        />
-                                        <span className={`ml-3 text-sm font-medium ${selectedReason === reason ? 'text-red-800 font-bold' : 'text-[#3F2E23]'}`}>
-                                            {reason}
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-
-                            {/* Textarea nhập lý do Khác */}
-                            {selectedReason === "Khác" && (
-                                <div className="mt-4 animate-in slide-in-from-top-2 duration-300">
-                                    <label className="block text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-2">Nhập lý do cụ thể <span className="text-red-500">*</span></label>
-                                    <textarea
-                                        value={customReason}
-                                        onChange={(e) => setCustomReason(e.target.value)}
-                                        placeholder="Ví dụ: Nghệ nhân yêu cầu hủy đơn, thay đổi phương thức thanh toán..."
-                                        rows={3}
-                                        className="w-full rounded-xl border border-red-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none text-[#3F2E23]"
-                                        disabled={isCancelling}
-                                    />
-                                </div>
-                            )}
-
-                            <div className="mt-5 p-3 bg-orange-50 border border-orange-100 rounded-lg flex gap-2">
-                                <span className="text-sm">💡</span>
-                                <p className="text-xs text-orange-800 leading-relaxed font-medium">Lưu ý: Thao tác này không thể hoàn tác. Nếu bạn đã thanh toán, tiền sẽ được hoàn về theo chính sách của Trạm Hồn.</p>
-                            </div>
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="p-5 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 shrink-0">
-                            <Button variant="outline" onClick={closeCancelModal} disabled={isCancelling} className="border-gray-300 text-[#3F2E23] font-bold rounded-xl h-11">
-                                Quay lại
-                            </Button>
-                            <Button onClick={performCancellation} disabled={isCancelling || !selectedReason} className="bg-red-600 hover:bg-red-700 text-white min-w-[140px] font-bold rounded-xl h-11 shadow-md">
-                                {isCancelling ? <Loader2 className="animate-spin h-5 w-5" /> : 'Đồng ý hủy đơn'}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             <Footer />
         </div>

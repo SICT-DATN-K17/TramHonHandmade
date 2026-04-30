@@ -86,3 +86,21 @@ class Otp(models.Model):
 
     def __str__(self):
         return f"OTP for {self.email or 'unknown'}"
+
+
+class Address(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='address')
+    full_name = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=20)
+    email = models.EmailField(null=True, blank=True)
+    detail_address = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'addresses'
+        verbose_name = 'Address'
+        verbose_name_plural = 'Addresses'
+
+    def __str__(self):
+        return f"{self.full_name} - {self.phone_number}"

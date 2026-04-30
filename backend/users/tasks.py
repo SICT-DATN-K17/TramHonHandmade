@@ -25,6 +25,12 @@ def sync_user_to_odoo_task(self, user_id):
             'active': user.is_active,
             'x_bio': user.bio if user.bio else False,
         }
+        try:
+            addr = user.address
+            payload['phone'] = addr.phone_number
+            payload['street'] = addr.detail_address
+        except Exception:
+            pass
 
         existing_partner = odoo.execute('res.partner', 'search', [('x_django_id', '=', user.id)])
 

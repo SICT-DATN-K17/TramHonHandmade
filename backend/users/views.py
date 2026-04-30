@@ -3,8 +3,9 @@ from .serializers import *
 from .permissions import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from rest_framework import status, permissions, viewsets
-from .models import CustomUser, Otp
+from .models import *
 from django.utils import timezone
 from django.db import transaction
 from datetime import timedelta
@@ -199,6 +200,8 @@ class UserViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         
         allowed_data = {}
+        if 'name' in request.data:
+            allowed_data['name'] = request.data['name']
         if 'bio' in request.data:
             allowed_data['bio'] = request.data['bio']
         
@@ -213,6 +216,33 @@ class UserViewSet(viewsets.ModelViewSet):
             instance._prefetched_objects_cache = {}
 
         return Response(serializer.data)
+
+
+class MyAddressView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            address = request.user.address
+            serializer = AddressSerializer(address)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({"message": "Chưa thiết lập địa chỉ"}, status=status.HTTP_404_NOT_FOUND)
+
+    def put(self, request):
+        try:
+            address = request.user.address
+            serializer = AddressSerializer(address, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            serializer = AddressSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(user=request.user)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OdooWebhookUserView(APIView):
@@ -238,9 +268,32 @@ class OdooWebhookUserView(APIView):
             if 'x_bio' in data: 
                 update_data['bio'] = data['x_bio'] if data['x_bio'] else ""
 
-            CustomUser.objects.filter(id=django_id).update(**update_data)
+            if update_data:
+                CustomUser.objects.filter(id=django_id).update(**update_data)
+                
+            if 'phone' in data or 'street' in data:
+                user = CustomUser.objects.get(id=django_id)
+                
+                addr_update_data = {}
+                if 'phone' in data:
+                    addr_update_data['phone_number'] = data['phone']
+                if 'street' in data:
+                    addr_update_data['detail_address'] = data['street']
+                
+                if addr_update_data:
+                    updated_count = Address.objects.filter(user=user).update(**addr_update_data)
+                    
+                    if updated_count == 0:
+                        Address.objects.bulk_create([
+                            Address(
+                                user=user,
+                                full_name=user.name,
+                                phone_number=data.get('phone', ''),
+                                detail_address=data.get('street', '')
+                            )
+                        ])
             
-            logger.info(f"Webhook: Đã cập nhật User ID {django_id} từ Odoo.")
+            logger.info(f"Webhook: Đã cập nhật User/Address ID {django_id} từ Odoo.")
             return Response({"status": "success"}, status=status.HTTP_200_OK)
             
         except Exception as e:

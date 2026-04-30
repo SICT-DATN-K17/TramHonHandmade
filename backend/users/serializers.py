@@ -2,7 +2,14 @@
 from djoser.serializers import UserCreateSerializer as BaseUserCreateSerializer, UserSerializer as BaseUserSerializer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import CustomUser
+from .models import *
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ['id', 'full_name', 'phone_number', 'email', 'detail_address', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class CustomUserCreateSerializer(BaseUserCreateSerializer):
@@ -66,6 +73,7 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 
 class UserListSerializer(serializers.ModelSerializer):
+    address = AddressSerializer(read_only=True)
     class Meta:
         model = CustomUser
-        fields = ('id', 'name', 'email', 'role', 'bio', 'created_at')
+        fields = ('id', 'name', 'email', 'role', 'bio', 'created_at', 'address')

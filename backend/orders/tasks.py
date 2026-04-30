@@ -65,11 +65,32 @@ def sync_order_to_odoo_task(self, order_id):
 
         try:
             so_id = odoo_so_id[0] if isinstance(odoo_so_id, list) else odoo_so_id
-
-            # CHỈ bấm "Confirm" chốt đơn bán hàng. Tuyệt đối KHÔNG auto-validate xuất kho nữa!
             odoo.execute('sale.order', 'action_confirm', [so_id])
-            
-            logger.info(f"Đã Confirm Sale Order {order_id}. Phiếu xuất kho đã được Odoo tự động tính toán (Chờ hoặc Sẵn sàng)!")
+            logger.info(f"Đã Confirm Sale Order {order_id}. Phiếu xuất kho đã được Odoo tự động tính toán!")
+
+            try:
+                template_records = odoo.execute('mail.template', 'search', [
+                    ('id', '=', 22)
+                ])
+                template_id = template_records[0] if template_records else False
+
+                if template_id:
+                    # B. Mở Wizard Gửi Email
+                    compose_wizard_id = odoo.execute('mail.compose.message', 'create', {
+                        'model': 'sale.order',
+                        'res_id': so_id,
+                        'template_id': template_id,
+                        'composition_mode': 'comment',
+                    })
+
+                    # C. Bấm nút "GỬI"
+                    odoo.execute('mail.compose.message', 'action_send_mail', [compose_wizard_id])
+                    logger.info(f"Đã TỰ ĐỘNG GỬI EMAIL Xác nhận cho SO {so_id} (Template ID: {template_id}).")
+                else:
+                    logger.warning("Không tìm thấy mẫu email tên 'Bán hàng: Xác nhận đơn hàng' trong Odoo!")
+
+            except Exception as mail_err:
+                logger.error(f"Lỗi khi gửi email xác nhận cho SO {so_id}: {mail_err}")
 
         except Exception as stock_err:
             logger.warning(f"Đã tạo SO nhưng lỗi lúc confirm: {stock_err}")

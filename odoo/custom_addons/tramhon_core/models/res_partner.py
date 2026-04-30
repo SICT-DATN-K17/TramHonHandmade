@@ -18,7 +18,7 @@ class ResPartner(models.Model):
     def write(self, vals):
         res = super(ResPartner, self).write(vals)
         
-        sync_fields = ['name', 'x_role', 'x_bio']
+        sync_fields = ['name', 'x_role', 'x_bio', 'phone', 'street']
         if any(key in vals for key in sync_fields):
             for record in self:
                 if record.x_django_id:
@@ -35,6 +35,8 @@ class ResPartner(models.Model):
             'name': record.name,
             'x_role': record.x_role,
             'x_bio': record.x_bio or "",
+            'phone': record.phone or "",
+            'street': record.street or "",
         }
         headers = {
             'Content-Type': 'application/json',

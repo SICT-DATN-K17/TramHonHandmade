@@ -5,18 +5,30 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Header, Footer } from '@/components/common';
+import { Button } from '@/components/ui/button';
 import { 
     Package, MapPin, CreditCard, Calendar, ChevronLeft, 
-    CheckCircle2, XCircle, Clock, Truck, FileText, Store, AlertCircle
+    CheckCircle2, XCircle, Clock, Truck, FileText, Store, AlertTriangle, X, Loader2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
+import useMyOrders from '@/hooks/useMyOrders'; // Import hook
 import { RawOrderDetail } from '@/types/apiTypes';
 import type { StoredOrder } from '@/lib/ordersStorage';
+import toast, { Toaster } from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 const FREE_SHIP_THRESHOLD = 200000;
 const SHIPPING_FEE = 20000;
+
+const CANCEL_REASONS = [
+    "Muốn thay đổi địa chỉ giao hàng",
+    "Muốn thay đổi sản phẩm/số lượng",
+    "Tìm thấy giá rẻ hơn ở nơi khác",
+    "Đổi ý không muốn mua nữa",
+    "Thời gian giao hàng quá lâu",
+    "Khác"
+];
 
 const getProductImageUrl = (path: string | null | undefined): string => {
     if (!path || path === 'undefined' || path === 'null' || path === '') return '/tramhon-logo.png';
@@ -58,11 +70,18 @@ export default function CustomerOrderDetailPage() {
     const params = useParams();
     const router = useRouter();
     const axiosAuth = useAxiosAuth();
+    const { cancelOrder } = useMyOrders(); // Gọi hàm Hủy từ Hook
     
     const orderId = Number(params.id);
     const [order, setOrder] = useState<OrderWithArtisan | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // --- STATES CHO MODAL HỦY ĐƠN ---
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [selectedReason, setSelectedReason] = useState<string>("");
+    const [customReason, setCustomReason] = useState<string>("");
+    const [isCancelling, setIsCancelling] = useState(false);
 
     useEffect(() => {
         if (!orderId || isNaN(orderId)) {
@@ -98,8 +117,8 @@ export default function CustomerOrderDetailPage() {
                     }
                 };
 
+                // Đã xóa phần tính phí ship như ông yêu cầu ở đoạn hội thoại trước
                 const subtotal = Number(orderData.totalPrice || 0);
-                const shippingFee = subtotal >= FREE_SHIP_THRESHOLD ? 0 : SHIPPING_FEE;
 
                 const mappedOrder: OrderWithArtisan = {
                     id: orderData.id,
@@ -109,8 +128,8 @@ export default function CustomerOrderDetailPage() {
                     status: mapBackendStatus(orderData.status),
                     createdAt: orderData.orderDate,
                     subtotal: subtotal,
-                    shippingFee: shippingFee,
-                    total: subtotal + shippingFee,
+                    shippingFee: 0, 
+                    total: subtotal, 
                     paymentMethod: mapBackendPayment(orderData.paymentMethod),
                     artisanId: orderData.artisanId,
                     artisanName: orderData.artisanName,
@@ -141,6 +160,47 @@ export default function CustomerOrderDetailPage() {
 
         fetchOrder();
     }, [orderId, axiosAuth]);
+
+    // --- LOGIC XỬ LÝ HỦY ĐƠN ---
+    const closeCancelModal = () => {
+        if (!isCancelling) {
+            setIsCancelModalOpen(false);
+            setSelectedReason("");
+            setCustomReason("");
+        }
+    };
+
+    const performCancellation = async () => {
+        if (!selectedReason) {
+            toast.error("Vui lòng chọn lý do hủy đơn!");
+            return;
+        }
+        
+        if (selectedReason === "Khác" && !customReason.trim()) {
+            toast.error("Vui lòng nhập lý do cụ thể!");
+            return;
+        }
+
+        const finalReason = selectedReason === "Khác" ? customReason.trim() : selectedReason;
+        const cancelNoteText = `Lý do hủy đơn: ${finalReason}`;
+
+        setIsCancelling(true);
+        const toastId = toast.loading('Đang xử lý hủy đơn...');
+
+        try {
+            await cancelOrder(orderId, cancelNoteText);
+            toast.success(<b>Đã hủy đơn hàng #{orderId} thành công!</b>, { id: toastId });
+            
+            // Cập nhật lại UI nội bộ mà không cần fetch lại toàn bộ
+            setOrder(prev => prev ? { ...prev, status: 'cancelled', shippingAddress: { ...prev.shippingAddress, note: (prev.shippingAddress.note ? prev.shippingAddress.note + " | " : "") + cancelNoteText } } : null);
+            
+            closeCancelModal();
+        } catch (err: any) {
+            toast.error(<b>{err.message || 'Lỗi khi hủy đơn'}</b>, { id: toastId });
+        } finally {
+            setIsCancelling(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -183,8 +243,12 @@ export default function CustomerOrderDetailPage() {
 
     const displayArtisanName = order.artisanName || 'Gian Hàng Chế Tác';
 
+    // Chỉ cho phép hủy nếu trạng thái chưa đến mức "DELIVERED" hay "COMPLETED"
+    const canCancel = !['delivered', 'completed', 'cancelled', 'refunded'].includes(order.status);
+
     return (
         <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7] flex flex-col">
+            <Toaster position="top-center" />
             <Header />
 
             <main className="flex-grow container mx-auto px-4 py-8 max-w-5xl">
@@ -204,11 +268,23 @@ export default function CustomerOrderDetailPage() {
                             <Calendar size={14} /> {formatDate(order.createdAt)}
                         </p>
                     </div>
-                    {!isCancelled && (
-                        <div className={`px-3 py-1.5 rounded-full border ${statusConfig[order.status].bg} ${statusConfig[order.status].border} ${statusConfig[order.status].text} text-sm font-bold flex items-center gap-1.5 shadow-sm w-max`}>
-                            <StatusIcon size={16} /> {statusConfig[order.status].label}
-                        </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                        {!isCancelled && (
+                            <div className={`px-3 py-1.5 rounded-full border ${statusConfig[order.status].bg} ${statusConfig[order.status].border} ${statusConfig[order.status].text} text-sm font-bold flex items-center gap-1.5 shadow-sm w-max`}>
+                                <StatusIcon size={16} /> {statusConfig[order.status].label}
+                            </div>
+                        )}
+                        {/* NÚT HỦY ĐƠN */}
+                        {canCancel && (
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsCancelModalOpen(true)}
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 font-bold h-9 rounded-xl transition-all"
+                            >
+                                <XCircle size={16} className="mr-1.5" /> Hủy đơn
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {isCancelled && (
@@ -269,10 +345,6 @@ export default function CustomerOrderDetailPage() {
                                         <span>Tạm tính</span>
                                         <span className="text-[#3F2E23] font-semibold">{formatCurrency(order.subtotal)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span>Phí vận chuyển</span>
-                                        <span>{order.shippingFee === 0 ? <span className="text-green-600 font-bold bg-green-50 px-1.5 py-0.5 rounded text-[11px]">Miễn phí</span> : formatCurrency(order.shippingFee)}</span>
-                                    </div>
                                 </div>
                                 <div className="mt-3 pt-3 border-t border-dashed border-[#E8D5B5] flex justify-between items-center">
                                     <span className="text-sm font-bold text-[#3F2E23]">Tổng cộng</span>
@@ -332,6 +404,73 @@ export default function CustomerOrderDetailPage() {
                     </div>
                 </div>
             </main>
+
+            {/* --- MODAL HỦY ĐƠN HÀNG XỊN SÒ --- */}
+            {isCancelModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#E8D5B5] overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="bg-red-50 p-5 flex items-center justify-between border-b border-red-100 shrink-0">
+                            <h3 className="font-bold flex items-center gap-2 text-red-700 text-lg">
+                                <AlertTriangle size={22} className="text-red-600" /> Lý do hủy đơn #{orderId}
+                            </h3>
+                            <button onClick={closeCancelModal} disabled={isCancelling} className="text-gray-400 hover:text-red-600 transition bg-white rounded-full p-1.5 shadow-sm border border-gray-200">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto custom-scrollbar">
+                            <p className="text-sm font-medium text-[#6B4F3E] mb-4">Vui lòng cho chúng tôi biết lý do bạn muốn hủy đơn hàng này nhé:</p>
+                            
+                            <div className="space-y-3">
+                                {CANCEL_REASONS.map((reason, idx) => (
+                                    <label key={idx} className={`flex items-start p-4 border-2 rounded-xl cursor-pointer transition-all ${selectedReason === reason ? 'border-red-500 bg-red-50/50' : 'border-[#E8D5B5] hover:bg-gray-50'}`}>
+                                        <input
+                                            type="radio"
+                                            name="cancelReason"
+                                            value={reason}
+                                            checked={selectedReason === reason}
+                                            onChange={(e) => setSelectedReason(e.target.value)}
+                                            className="mt-0.5 w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300 cursor-pointer"
+                                            disabled={isCancelling}
+                                        />
+                                        <span className={`ml-3 text-sm font-medium ${selectedReason === reason ? 'text-red-800 font-bold' : 'text-[#3F2E23]'}`}>
+                                            {reason}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+
+                            {selectedReason === "Khác" && (
+                                <div className="mt-4 animate-in slide-in-from-top-2 duration-300">
+                                    <label className="block text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-2">Nhập lý do cụ thể <span className="text-red-500">*</span></label>
+                                    <textarea
+                                        value={customReason}
+                                        onChange={(e) => setCustomReason(e.target.value)}
+                                        placeholder="Ví dụ: Nghệ nhân yêu cầu hủy đơn, thay đổi phương thức thanh toán..."
+                                        rows={3}
+                                        className="w-full rounded-xl border border-red-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none text-[#3F2E23]"
+                                        disabled={isCancelling}
+                                    />
+                                </div>
+                            )}
+
+                            <div className="mt-5 p-3 bg-orange-50 border border-orange-100 rounded-lg flex gap-2">
+                                <span className="text-sm">💡</span>
+                                <p className="text-xs text-orange-800 leading-relaxed font-medium">Lưu ý: Thao tác này không thể hoàn tác. Nếu bạn đã thanh toán, tiền sẽ được hoàn về theo chính sách của Trạm Hồn.</p>
+                            </div>
+                        </div>
+
+                        <div className="p-5 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 shrink-0">
+                            <Button variant="outline" onClick={closeCancelModal} disabled={isCancelling} className="border-gray-300 text-[#3F2E23] font-bold rounded-xl h-11">
+                                Quay lại
+                            </Button>
+                            <Button onClick={performCancellation} disabled={isCancelling || !selectedReason} className="bg-red-600 hover:bg-red-700 text-white min-w-[140px] font-bold rounded-xl h-11 shadow-md">
+                                {isCancelling ? <Loader2 className="animate-spin h-5 w-5" /> : 'Đồng ý hủy đơn'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <Footer />
         </div>

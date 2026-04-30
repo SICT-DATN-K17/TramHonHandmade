@@ -29,7 +29,12 @@ export const authOptions: NextAuthOptions = {
                 }
 
                 try {
-                    const res = await axios.post(`${INTERNAL_API_URL}/auth/jwt/create`, credentials, {
+                    const cleanPayload = {
+                        email: credentials.email,
+                        password: credentials.password,
+                    };
+
+                    const res = await axios.post(`${INTERNAL_API_URL}/auth/jwt/create/`, cleanPayload, {
                         headers: { "Content-Type": "application/json" }
                     });
 
@@ -47,7 +52,7 @@ export const authOptions: NextAuthOptions = {
                     console.error("Login error:", error?.response?.data || error.message);
 
                     if (axios.isAxiosError(error)) {
-                        throw new Error(error.response?.data?.message || "Đăng nhập thất bại");
+                        throw new Error(error.response?.data?.detail || error.response?.data?.message || "Đăng nhập thất bại");
                     }
                     throw new Error("Đã xảy ra lỗi không xác định");
                 }
@@ -62,7 +67,10 @@ export const authOptions: NextAuthOptions = {
 
             return true;
         },
-        async jwt({ token, user, account }) {
+        async jwt({ token, user, account,trigger, session}) {
+            if (trigger === "update" && session?.name) {
+                token.name = session.name;
+            }
             if (user && account) {
                 token.id = user.id;
                 token.role = (user as any).role;
@@ -77,6 +85,7 @@ export const authOptions: NextAuthOptions = {
                 (session.user as any).id = token.id;
                 (session.user as any).role = token.role;
                 (session.user as any).apiAccessToken = token.apiAccessToken;
+                session.user.name = token.name as string;
             }
             return session;
         },
