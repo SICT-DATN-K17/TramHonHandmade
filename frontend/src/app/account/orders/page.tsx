@@ -1,23 +1,35 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import useMyOrders from "@/hooks/useMyOrders";
 import useAxiosAuth from "@/hooks/useAxiosAuth";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, Package, Calendar, ChevronRight, AlertCircle as AlertCircleIcon, CheckCircle2 } from "lucide-react";
+import { Loader2, Package, Calendar, ChevronRight, AlertCircle as AlertCircleIcon, CheckCircle2, Filter } from "lucide-react";
 import { Header, Footer } from "@/components/common";
 import toast, { Toaster } from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+// Cấu hình trạng thái đồng bộ với backend và giao diện khách hàng
+const statusConfig: Record<string, { label: string; className: string; icon: string }> = {
+    PENDING_PICKUP: { label: "Đang chờ lấy hàng", className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "⏳" },
+    PACKAGING: { label: "Đang đóng gói hàng", className: "bg-blue-50 text-blue-700 border-blue-200", icon: "📦" },
+    SHIPPING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
+    DELIVERED_AWAITING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
+    DELIVERED: { label: "Đã giao hàng", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "📬" },
+    COMPLETED: { label: "Hoàn thành", className: "bg-green-50 text-green-700 border-green-200", icon: "✅" },
+    CANCELLED: { label: "Đã hủy", className: "bg-red-50 text-red-700 border-red-200", icon: "❌" },
+    REFUNDED: { label: "Đã hoàn tiền", className: "bg-gray-50 text-gray-700 border-gray-200", icon: "💸" },
+};
+
 const getProductImageUrl = (path: string | null | undefined): string => {
     if (!path || path === 'undefined' || path === 'null' || path === '') return '/tramhon-logo.png';
     if (path.startsWith('http')) return path;
     if (path.startsWith('//')) return `https:${path}`;
-    
+
     let normalizedPath = path;
     if (!normalizedPath.startsWith('/')) normalizedPath = '/' + normalizedPath;
     if (normalizedPath.startsWith('/uploads/uploads/')) {
@@ -29,9 +41,12 @@ const getProductImageUrl = (path: string | null | undefined): string => {
 };
 
 export default function MyOrdersPage() {
-    const { orders, isLoading, error, refetch } = useMyOrders(); // Đổi mutate -> refetch
+    const { orders, isLoading, error, refetch } = useMyOrders();
     const axiosAuth = useAxiosAuth();
     const [isConfirmingId, setIsConfirmingId] = useState<number | null>(null);
+
+    // State quản lý bộ lọc trạng thái
+    const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
     const confirmDelivery = async (orderId: number) => {
         setIsConfirmingId(orderId);
@@ -39,7 +54,7 @@ export default function MyOrdersPage() {
         try {
             await axiosAuth.put(`/orders/${orderId}/confirm-delivery/`);
             toast.success(<b>Đã xác nhận nhận hàng! Cảm ơn bạn.</b>, { id: toastId });
-            if (refetch) refetch(); // Gọi refetch thay vì mutate
+            if (refetch) refetch();
         } catch (err: any) {
             toast.error(<b>{err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận.'}</b>, { id: toastId });
         } finally {
@@ -47,22 +62,16 @@ export default function MyOrdersPage() {
         }
     };
 
+    // Logic lọc danh sách đơn hàng[cite: 19]
+    const filteredOrders = useMemo(() => {
+        if (filterStatus === 'ALL') return orders;
+        return orders.filter((order: any) => (order.status || '').toUpperCase() === filterStatus);
+    }, [orders, filterStatus]);
+
     const renderStatusBadge = (status: string) => {
         const upperStatus = status?.toUpperCase() || '';
-        
-        const statusMap: Record<string, { label: string; className: string; icon: string }> = {
-            PENDING_PICKUP: { label: "Đang chờ lấy hàng", className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "⏳" },
-            PACKAGING: { label: "Đang đóng gói hàng", className: "bg-blue-50 text-blue-700 border-blue-200", icon: "📦" },
-            SHIPPING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
-            DELIVERED_AWAITING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
-            DELIVERED: { label: "Đã giao hàng", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "📬" },
-            COMPLETED: { label: "Hoàn thành", className: "bg-green-50 text-green-700 border-green-200", icon: "✅" },
-            CANCELLED: { label: "Đã hủy", className: "bg-red-50 text-red-700 border-red-200", icon: "❌" },
-            REFUNDED: { label: "Đã hoàn tiền", className: "bg-gray-50 text-gray-700 border-gray-200", icon: "💸" },
-        };
-        
-        const config = statusMap[upperStatus] || { label: status, className: "bg-gray-100 text-gray-800", icon: "📦" };
-        
+        const config = statusConfig[upperStatus] || { label: status, className: "bg-gray-100 text-gray-800", icon: "📦" };
+
         return (
             <span className={`px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${config.className}`}>
                 <span>{config.icon}</span>{config.label}
@@ -108,107 +117,150 @@ export default function MyOrdersPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className="space-y-6 max-w-5xl mx-auto">
-                        {orders.map((order, idx) => {
-                            const isCancelled = order.status?.toUpperCase() === 'CANCELLED';
-                            const rawNote = order.note || ""; // Lấy thẳng note từ api thay vì shippingAddress.note
-                            const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
-                            const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
-                            
-                            const canConfirmDelivery = ['SHIPPING', 'DELIVERED_AWAITING'].includes(order.status?.toUpperCase() || '');
+                    <div className="space-y-8 max-w-5xl mx-auto">
+                        {/* THANH BỘ LỌC TRẠNG THÁI */}
+                        <div className="flex flex-wrap items-center justify-center gap-3 bg-white p-4 rounded-3xl border border-[#E8D5B5] shadow-sm">
+                            <button
+                                onClick={() => setFilterStatus('ALL')}
+                                className={`px-5 py-2 rounded-full text-sm font-bold transition-all border ${filterStatus === 'ALL'
+                                        ? 'bg-[#3F2E23] text-white shadow-md border-[#3F2E23]'
+                                        : 'text-[#6B4F3E] border-transparent hover:bg-[#FFF8F0]'
+                                    }`}
+                            >
+                                Tất cả ({orders.length})
+                            </button>
+                            {Object.entries(statusConfig).map(([key, config]) => {
+                                const count = orders.filter((o: any) => (o.status || '').toUpperCase() === key).length;
+                                if (count === 0 && filterStatus !== key) return null;
 
-                            return (
-                                <div
-                                    key={order.id}
-                                    className={`group overflow-hidden rounded-2xl border transition-all duration-500 hover:shadow-md bg-white animate-in fade-in slide-in-from-bottom-4 ${isCancelled ? 'border-red-200' : 'border-[#E8D5B5]'}`}
-                                    style={{ animationFillMode: 'both', animationDelay: `${idx * 100}ms` }}
-                                >
-                                    <div className={`flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 ${isCancelled ? 'bg-red-50/50 border-red-100' : 'bg-[#FFF8F0] border-[#E8D5B5]'}`}>
-                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm ${isCancelled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-[#E8D5B5] text-[#3F2E23]'}`}>
-                                                <Package size={18} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />
-                                                <span className="font-bold text-lg">#{order.orderNumber || order.id}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-sm font-medium text-[#6B4F3E]">
-                                                <Calendar size={16} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />{formatDate(order.createdAt || order.orderDate)}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">{renderStatusBadge(order.status || '')}</div>
-                                    </div>
+                                const isActive = filterStatus === key;
+                                return (
+                                    <button
+                                        key={key}
+                                        onClick={() => setFilterStatus(key)}
+                                        // Sử dụng config.className để lấy đúng màu nền và chữ của trạng thái đó[cite: 19]
+                                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 border ${isActive
+                                                ? `${config.className} shadow-md border-current scale-105`
+                                                : 'text-[#6B4F3E] border-transparent hover:bg-[#FFF8F0] hover:border-[#E8D5B5]'
+                                            }`}
+                                    >
+                                        <span>{config.icon}</span> {config.label} ({count})
+                                    </button>
+                                );
+                            })}
+                        </div>
 
-                                    {isCancelled && hasCancelReason && (
-                                        <div className="px-6 pt-5">
-                                            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start shadow-sm">
-                                                <AlertCircleIcon className="text-red-600 mt-0.5 shrink-0" size={20} />
-                                                <div>
-                                                    <span className="text-xs font-bold text-red-700 uppercase tracking-wider block mb-1">Lý do hủy đơn</span>
-                                                    <p className="text-sm font-medium text-red-800">{cancelReasonText}</p>
+                        {filteredOrders.length === 0 ? (
+                            <div className="text-center py-20 bg-white rounded-3xl border border-[#E8D5B5] border-dashed">
+                                <Filter className="mx-auto h-12 w-12 text-[#E8D5B5] mb-4" />
+                                <p className="text-lg font-bold" style={{ color: '#3F2E23' }}>Không tìm thấy đơn hàng nào ở trạng thái này</p>
+                                <Button variant="link" onClick={() => setFilterStatus('ALL')} className="text-[#D96C39] font-bold mt-2">Xem tất cả đơn hàng</Button>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {filteredOrders.map((order: any, idx: number) => {
+                                    const isCancelled = order.status?.toUpperCase() === 'CANCELLED';
+                                    const rawNote = order.note || "";
+                                    const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
+                                    const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
+
+                                    const canConfirmDelivery = ['SHIPPING', 'DELIVERED_AWAITING'].includes(order.status?.toUpperCase() || '');
+
+                                    return (
+                                        <div
+                                            key={order.id}
+                                            className={`group overflow-hidden rounded-2xl border transition-all duration-500 hover:shadow-md bg-white animate-in fade-in slide-in-from-bottom-4 ${isCancelled ? 'border-red-200' : 'border-[#E8D5B5]'}`}
+                                            style={{ animationFillMode: 'both', animationDelay: `${idx * 50}ms` }}
+                                        >
+                                            {/* Phần Header đơn hàng giữ nguyên[cite: 19] */}
+                                            <div className={`flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 ${isCancelled ? 'bg-red-50/50 border-red-100' : 'bg-[#FFF8F0] border-[#E8D5B5]'}`}>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                                                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm ${isCancelled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-[#E8D5B5] text-[#3F2E23]'}`}>
+                                                        <Package size={18} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />
+                                                        <span className="font-bold text-lg">#{order.orderNumber || order.id}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm font-medium text-[#6B4F3E]">
+                                                        <Calendar size={16} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />{formatDate(order.createdAt || order.orderDate)}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">{renderStatusBadge(order.status || '')}</div>
+                                            </div>
+
+                                            {/* Lý do hủy nếu có[cite: 19] */}
+                                            {isCancelled && hasCancelReason && (
+                                                <div className="px-6 pt-5">
+                                                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start shadow-sm">
+                                                        <AlertCircleIcon className="text-red-600 mt-0.5 shrink-0" size={20} />
+                                                        <div>
+                                                            <span className="text-xs font-bold text-red-700 uppercase tracking-wider block mb-1">Lý do hủy đơn</span>
+                                                            <p className="text-sm font-medium text-red-800">{cancelReasonText}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="p-6">
+                                                <div className="space-y-4">
+                                                    {order.items.map((item: any, index: number) => {
+                                                        const imageUrl = getProductImageUrl(item.productImage || item.imageUrl || item.image);
+                                                        return (
+                                                            <div key={index} className="flex gap-4 items-center bg-[#FDFBF7] p-3 rounded-xl border border-[#E8D5B5]/50">
+                                                                <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-[#E8D5B5] bg-white shadow-sm">
+                                                                    <Image src={imageUrl} alt={item.productName || 'Product'} fill className="object-cover" />
+                                                                </div>
+                                                                <div className="flex flex-1 flex-col justify-center">
+                                                                    <h4 className="font-bold text-base line-clamp-2 leading-snug" style={{ color: '#3F2E23' }}>{item.productName}</h4>
+                                                                    <p className="text-sm mt-1.5 font-medium bg-[#E8D5B5]/30 px-2 py-0.5 rounded-md inline-block w-max" style={{ color: '#6B4F3E' }}>
+                                                                        Số lượng: <span className="font-bold text-[#3F2E23]">x{item.quantity}</span>
+                                                                    </p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="font-black text-lg" style={{ color: '#D96C39' }}>
+                                                                        {formatCurrency(Number(item.priceOrder || item.price || 0))}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E8D5B5] px-6 py-5 bg-gray-50/30">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
+                                                    <span className="text-2xl font-black" style={{ color: '#D96C39' }}>
+                                                        {formatCurrency(Number(order.totalPrice || order.total || 0))}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                    {canConfirmDelivery && (
+                                                        <Button
+                                                            onClick={() => confirmDelivery(order.id)}
+                                                            disabled={isConfirmingId === order.id}
+                                                            className="flex-1 sm:flex-none text-white font-bold h-11 rounded-xl shadow-md transition-all hover:-translate-y-0.5"
+                                                            style={{ backgroundColor: '#10B981' }}
+                                                        >
+                                                            {isConfirmingId === order.id ? (
+                                                                <Loader2 className="animate-spin h-5 w-5" />
+                                                            ) : (
+                                                                <><CheckCircle2 size={18} className="mr-1.5" /> Đã nhận được hàng</>
+                                                            )}
+                                                        </Button>
+                                                    )}
+
+                                                    <Link href={`/account/orders/${order.id}`} className="flex-1 sm:flex-none">
+                                                        <Button variant="outline" className="w-full sm:w-auto text-[#3F2E23] border-[#E8D5B5] font-bold h-11 rounded-xl hover:bg-[#FFF8F0] transition-all">
+                                                            Xem chi tiết <ChevronRight size={18} className="ml-1" />
+                                                        </Button>
+                                                    </Link>
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
-
-                                    <div className="p-6">
-                                        <div className="space-y-4">
-                                            {order.items.map((item: any, index: number) => {
-                                                const imageUrl = getProductImageUrl(item.productImage || item.imageUrl || item.image);
-                                                
-                                                return (
-                                                    <div key={index} className="flex gap-4 items-center bg-[#FDFBF7] p-3 rounded-xl border border-[#E8D5B5]/50">
-                                                        <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-[#E8D5B5] bg-white shadow-sm">
-                                                            <Image src={imageUrl} alt={item.productName || 'Product'} fill className="object-cover" />
-                                                        </div>
-                                                        <div className="flex flex-1 flex-col justify-center">
-                                                            <h4 className="font-bold text-base line-clamp-2 leading-snug" style={{ color: '#3F2E23' }}>{item.productName}</h4>
-                                                            <p className="text-sm mt-1.5 font-medium bg-[#E8D5B5]/30 px-2 py-0.5 rounded-md inline-block w-max" style={{ color: '#6B4F3E' }}>
-                                                                Số lượng: <span className="font-bold text-[#3F2E23]">x{item.quantity}</span>
-                                                            </p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="font-black text-lg" style={{ color: '#D96C39' }}>
-                                                                {formatCurrency(Number(item.priceOrder || item.price || 0))}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E8D5B5] px-6 py-5 bg-gray-50/30">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
-                                            <span className="text-2xl font-black" style={{ color: '#D96C39' }}>
-                                                {formatCurrency(Number(order.totalPrice || order.total || 0))}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                                            {canConfirmDelivery && (
-                                                <Button 
-                                                    onClick={() => confirmDelivery(order.id)}
-                                                    disabled={isConfirmingId === order.id}
-                                                    className="flex-1 sm:flex-none text-white font-bold h-11 rounded-xl shadow-md transition-all hover:-translate-y-0.5" 
-                                                    style={{ backgroundColor: '#10B981' }} 
-                                                >
-                                                    {isConfirmingId === order.id ? (
-                                                        <Loader2 className="animate-spin h-5 w-5" />
-                                                    ) : (
-                                                        <><CheckCircle2 size={18} className="mr-1.5" /> Đã nhận được hàng</>
-                                                    )}
-                                                </Button>
-                                            )}
-
-                                            <Link href={`/account/orders/${order.id}`} className="flex-1 sm:flex-none">
-                                                <Button variant="outline" className="w-full sm:w-auto text-[#3F2E23] border-[#E8D5B5] font-bold h-11 rounded-xl hover:bg-[#FFF8F0] transition-all">
-                                                    Xem chi tiết <ChevronRight size={18} className="ml-1" />
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>

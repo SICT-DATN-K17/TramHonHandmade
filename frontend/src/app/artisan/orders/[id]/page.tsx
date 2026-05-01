@@ -34,11 +34,12 @@ const getProductImageUrl = (path: string | null | undefined): string => {
     return `${API_URL}${normalizedPath}`;
 };
 
-// Cập nhật bộ trạng thái chuẩn
+// Cập nhật bộ trạng thái chuẩn (Đã thêm DELIVERED_AWAITING)
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
     PENDING_PICKUP: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
     PACKAGING: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
     SHIPPING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    DELIVERED_AWAITING: { label: 'Chờ khách xác nhận', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: Truck },
     DELIVERED: { label: 'Đã giao hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
     COMPLETED: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
     CANCELLED: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
@@ -175,8 +176,8 @@ export default function ArtisanOrderDetailPage() {
     const currentStatusConfig = statusConfig[order.status] || { label: order.status, bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: Package };
     const StatusIcon = currentStatusConfig.icon;
 
-    // Check xem đơn có nằm trong nhóm trạng thái cho phép hủy không
-    const canCancel = !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status);
+    // Chặn hủy đơn nếu đã vào các trạng thái hoàn tất/chờ xác nhận
+    const canCancel = !['DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status);
     const isCancelled = order.status === 'CANCELLED';
 
     const rawNote = order.shippingAddress.note || "";
@@ -220,7 +221,7 @@ export default function ArtisanOrderDetailPage() {
                         <Calendar size={14} /> {formatDate(order.createdAt)}
                     </p>
                 </div>
-                {/* Trạng thái giờ chỉ hiển thị, không được phép chọn nữa */}
+                {/* Trạng thái hiển thị */}
                 <div className={`px-4 py-2 rounded-full border ${currentStatusConfig.bg} ${currentStatusConfig.border} ${currentStatusConfig.text} text-sm font-bold flex items-center gap-1.5 shadow-sm`}>
                     <StatusIcon size={16} /> {currentStatusConfig.label}
                 </div>

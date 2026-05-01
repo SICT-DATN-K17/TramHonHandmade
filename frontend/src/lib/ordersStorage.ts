@@ -1,12 +1,15 @@
 import type { PaymentMethod, ShippingAddress } from '@/types';
 
+// CẬP NHẬT BỘ TRẠNG THÁI CHUẨN ĐỒNG BỘ VỚI DJANGO & ODOO
 export type StoredOrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'processing'
-  | 'shipped'
-  | 'delivered'
-  | 'cancelled';
+  | 'PENDING_PICKUP'
+  | 'PACKAGING'
+  | 'SHIPPING'
+  | 'DELIVERED_AWAITING'
+  | 'DELIVERED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'REFUNDED';
 
 export type StoredOrderItem = {
   productId: number;
@@ -21,7 +24,7 @@ export type StoredOrder = {
   orderNumber: string;
   customerName: string;
   phone: string;
-  status: StoredOrderStatus;
+  status: StoredOrderStatus; // Đã cập nhật kiểu dữ liệu mới
   createdAt: string;
   subtotal: number;
   shippingFee: number;
@@ -103,6 +106,3 @@ export function updateOrderStatus(orderId: number, status: StoredOrderStatus): S
   saveStoredOrders(nextOrders);
   return nextOrders;
 }
-
-
-

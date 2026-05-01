@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Loader2, FileText } from 'lucide-react';
+import { Eye, Loader2, FileText, Filter } from 'lucide-react';
 import type { PaymentMethod } from '@/types';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import toast, { Toaster } from 'react-hot-toast';
@@ -37,6 +37,7 @@ const statusConfig: Record<string, { label: string; badgeClass: string }> = {
     PENDING_PICKUP: { label: 'Đang chờ lấy hàng', badgeClass: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
     PACKAGING: { label: 'Đang đóng gói hàng', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
     SHIPPING: { label: 'Đang giao hàng', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
+    DELIVERED_AWAITING: { label: 'Chờ khách xác nhận', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
     DELIVERED: { label: 'Đã giao hàng', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     COMPLETED: { label: 'Hoàn thành', badgeClass: 'bg-green-50 text-green-700 border-green-200' },
     CANCELLED: { label: 'Đã hủy', badgeClass: 'bg-red-50 text-red-700 border-red-200' },
@@ -51,7 +52,6 @@ const paymentLabels: Record<PaymentMethod, string> = {
 
 const formatCurrency = (value: number) => `₫${value.toLocaleString('vi-VN')}`;
 
-// Map data từ Backend bắn ra
 const mapArtisanOrder = (rawOrder: RawArtisanOrderList): MappedOrder => {
     const mapBackendPaymentMethodToFrontend = (backendMethod: string): PaymentMethod => {
         switch (backendMethod) {
@@ -66,7 +66,7 @@ const mapArtisanOrder = (rawOrder: RawArtisanOrderList): MappedOrder => {
         orderNumber: rawOrder.orderNumber,
         customerName: rawOrder.customerName,
         phone: rawOrder.phone,
-        status: rawOrder.status?.toUpperCase() || 'PENDING_PICKUP', // Lấy thẳng Status Backend
+        status: rawOrder.status?.toUpperCase() || 'PENDING_PICKUP',
         createdAt: rawOrder.createdAt,
         subtotal: Number(rawOrder.subtotal),
         shippingFee: Number(rawOrder.shippingFee || 0),
@@ -78,6 +78,8 @@ const mapArtisanOrder = (rawOrder: RawArtisanOrderList): MappedOrder => {
 const ArtisanOrdersPage = () => {
     const [orders, setOrders] = useState<MappedOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    // State mới cho bộ lọc[cite: 18]
+    const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
     const axiosAuth = useAxiosAuth();
 
@@ -100,7 +102,13 @@ const ArtisanOrdersPage = () => {
         fetchOrders();
     }, [fetchOrders]);
 
-    // Bỏ qua đơn Hủy và Hoàn tiền khi tính doanh thu
+    // Logic lọc đơn hàng[cite: 18]
+    const filteredOrders = useMemo(() => {
+        if (filterStatus === 'ALL') return orders;
+        return orders.filter(order => order.status === filterStatus);
+    }, [orders, filterStatus]);
+
+    // Doanh thu vẫn tính trên tổng số đơn không bị hủy (Global Stats)[cite: 18]
     const totalRevenue = useMemo(
         () => orders
             .filter(order => !['CANCELLED', 'REFUNDED'].includes(order.status))
@@ -108,24 +116,9 @@ const ArtisanOrdersPage = () => {
         [orders]
     );
 
-    // Tính số đơn đang xử lý (Bỏ qua Giao xong, Hoàn thành, Hủy, Hoàn tiền)
     const processingOrdersCount = useMemo(
-        () => orders.filter((o) => !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status)).length,
+        () => orders.filter((o) => !['DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status)).length,
         [orders]
-    );
-
-    const renderEmptyState = () => (
-        <div className="rounded-lg border border-dashed border-[#E8D5B5] bg-white p-10 text-center flex flex-col items-center">
-            <div className="w-16 h-16 bg-[#FFF8F0] rounded-full flex items-center justify-center text-[#D96C39] mb-4">
-                <FileText size={28} />
-            </div>
-            <p className="text-lg font-semibold" style={{ color: '#3F2E23' }}>
-                Chưa có đơn hàng nào
-            </p>
-            <p className="mt-2 text-sm" style={{ color: '#6B4F3E' }}>
-                Khi có đơn mới, hệ thống sẽ lưu vào đây tự động.
-            </p>
-        </div>
     );
 
     return (
@@ -158,14 +151,52 @@ const ArtisanOrdersPage = () => {
                     </div>
                 </div>
 
+                {/* BỘ LỌC TRẠNG THÁI (Tabs Filter) */}
+                <div className="flex flex-wrap gap-2 pb-2">
+                    <Button
+                        variant={filterStatus === 'ALL' ? 'default' : 'outline'}
+                        onClick={() => setFilterStatus('ALL')}
+                        className={`rounded-full px-4 h-9 font-bold transition-all ${filterStatus === 'ALL'
+                                ? 'bg-[#3F2E23] text-white shadow-md'
+                                : 'border-[#E8D5B5] text-[#6B4F3E] hover:bg-[#FFF8F0]'
+                            }`}
+                    >
+                        Tất cả ({orders.length})
+                    </Button>
+                    {Object.entries(statusConfig).map(([key, config]) => {
+                        const count = orders.filter(o => o.status === key).length;
+                        if (count === 0 && filterStatus !== key) return null;
+
+                        const isActive = filterStatus === key;
+                        return (
+                            <Button
+                                key={key}
+                                variant={isActive ? 'default' : 'outline'}
+                                onClick={() => setFilterStatus(key)}
+                                // Sử dụng config.badgeClass để đồng bộ màu sắc với Badge hiển thị[cite: 18]
+                                className={`rounded-full px-4 h-9 font-bold transition-all border-2 ${isActive
+                                        ? `${config.badgeClass} shadow-md border-current`
+                                        : 'border-[#E8D5B5] text-[#6B4F3E] hover:bg-[#FFF8F0] border-transparent'
+                                    }`}
+                            >
+                                {config.label} ({count})
+                            </Button>
+                        );
+                    })}
+                </div>
+
                 <div className="overflow-hidden rounded-2xl border border-[#E8D5B5] bg-white shadow-sm">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-20 flex-col gap-3" style={{ color: '#6B4F3E' }}>
                             <Loader2 className="h-8 w-8 animate-spin text-[#D96C39]" />
                             <span className="font-medium">Đang tải dữ liệu đơn hàng...</span>
                         </div>
-                    ) : orders.length === 0 ? (
-                        renderEmptyState()
+                    ) : filteredOrders.length === 0 ? (
+                        <div className="py-20 flex flex-col items-center">
+                            <Filter size={40} className="text-[#E8D5B5] mb-3" />
+                            <p className="font-bold text-[#3F2E23]">Không tìm thấy đơn hàng nào khớp bộ lọc</p>
+                            <Button variant="link" onClick={() => setFilterStatus('ALL')} className="text-[#D96C39]">Xem tất cả đơn hàng</Button>
+                        </div>
                     ) : (
                         <Table>
                             <TableHeader className="bg-[#FFF8F0]">
@@ -181,7 +212,7 @@ const ArtisanOrdersPage = () => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {orders.map((order) => {
+                                {filteredOrders.map((order) => {
                                     const statusObj = statusConfig[order.status] || { label: order.status, badgeClass: 'bg-gray-100 text-gray-800' };
 
                                     return (
