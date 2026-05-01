@@ -36,13 +36,17 @@ export default function MyChatsPage() {
     }, []);
 
     const renderStatusBadge = (status: string) => {
+        const upperStatus = status?.toUpperCase() || 'PENDING';
+        
         const statusMap: Record<string, { label: string; className: string }> = {
-            PENDING: { label: "Đang chờ", className: "bg-gray-100 text-gray-800 border-gray-200" },
-            NEGOTIATING: { label: "Đang thương lượng", className: "bg-orange-100 text-orange-800 border-orange-200" },
-            ORDER_CREATED: { label: "Đơn hàng đã được tạo", className: "bg-blue-50 text-blue-700 border-blue-200" },
-            CLOSED: { label: "Đã hoàn thành", className: "bg-green-50 text-green-700 border-green-200" },
+            PENDING: { label: "Đang chờ", className: "bg-yellow-50 text-yellow-800 border-yellow-200" },
+            NEGOTIATING: { label: "Đang thương lượng", className: "bg-blue-50 text-blue-800 border-blue-200" },
+            ORDER_CREATED: { label: "Có báo giá mới!", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+            CLOSED: { label: "Đã chốt đơn", className: "bg-green-50 text-green-700 border-green-200" },
         };
-        const config = statusMap[status] || { label: status, className: "bg-gray-100 text-gray-800" };
+        
+        const config = statusMap[upperStatus] || { label: status, className: "bg-gray-100 text-gray-800" };
+        
         return (
             <span className={`px-3 py-1 rounded-full text-xs font-semibold border shadow-sm ${config.className}`}>
                 {config.label}
@@ -50,7 +54,6 @@ export default function MyChatsPage() {
         );
     };
 
-    // Component hiển thị danh sách Gian hàng khi ĐÃ CÓ YÊU CẦU (Nằm ngang ở dưới cùng)
     const renderArtisanListHorizontal = () => {
         if (artisans.length === 0) return null;
 
@@ -104,10 +107,8 @@ export default function MyChatsPage() {
                     </div>
                 ) : chatDataDetails.length === 0 ? (
                     
-                    /* --- BỐ CỤC CHIA 2 CỘT CHO EMPTY STATE --- */
                     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
                         
-                        {/* CỘT TRÁI: Lời kêu gọi */}
                         <div className="text-center lg:text-left py-12 px-8 md:px-12 rounded-3xl border border-[#E8D5B5] bg-white shadow-sm flex flex-col justify-center animate-in fade-in slide-in-from-left-4 duration-500">
                             <div className="text-6xl mb-6 transform hover:scale-110 transition-transform duration-300 inline-block">🛍️</div>
                             <h3 className="text-3xl font-bold mb-4 text-[#3F2E23]">Bạn chưa có yêu cầu làm riêng nào</h3>
@@ -123,7 +124,6 @@ export default function MyChatsPage() {
                             </div>
                         </div>
 
-                        {/* CỘT PHẢI: Lưới Gian hàng */}
                         <div className="bg-white rounded-3xl border border-[#E8D5B5] p-8 shadow-sm flex flex-col justify-center animate-in fade-in slide-in-from-right-4 duration-500">
                             <h3 className="text-xl font-bold text-[#3F2E23] mb-6 relative inline-block">
                                 Hoặc ghé qua các gian hàng tiêu biểu
@@ -151,7 +151,6 @@ export default function MyChatsPage() {
                     </div>
 
                 ) : (
-                    /* LIST YÊU CẦU NẾU ĐÃ CÓ DATA */
                     <div className="max-w-5xl mx-auto">
                         <div className="space-y-6">
                             {chatDataDetails.map((chatDetail, idx) => (

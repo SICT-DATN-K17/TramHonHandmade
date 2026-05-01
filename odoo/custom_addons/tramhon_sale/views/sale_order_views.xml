@@ -11,11 +11,7 @@
             </xpath>
 
             <xpath expr="//header" position="inside">
-                <button name="action_admin_delivered" 
-                        type="object" 
-                        string="Đã giao hàng" 
-                        class="oe_highlight" 
-                        attrs="{'invisible': [('x_web_status', '!=', 'SHIPPING')]}"/>
+                <button name="action_admin_delivered" type="object" string="Đã giao hàng" class="oe_highlight" attrs="{'invisible': [('x_web_status', '!=', 'SHIPPING')]}"/>
                 <field name="x_web_status" widget="statusbar" statusbar_visible="PENDING_PICKUP,PACKAGING,SHIPPING,DELIVERED,COMPLETED"/>
             </xpath>
 
@@ -72,7 +68,7 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//field[@name='state']" position="after">
-                <field name="x_web_status" string="Trạng thái Web" widget="badge" decoration-warning="x_web_status == 'PENDING_PICKUP'" decoration-info="x_web_status in ('PACKAGING', 'SHIPPING')" decoration-success="x_web_status in ('DELIVERED', 'COMPLETED')" decoration-danger="x_web_status == 'CANCELLED'" decoration-muted="x_web_status == 'REFUNDED'" optional="show"/>
+                <field name="x_web_status" string="Trạng thái Web" widget="badge" decoration-warning="x_web_status == 'PENDING_PICKUP'" decoration-info="x_web_status == 'PACKAGING'" decoration-primary="x_web_status == 'SHIPPING'" decoration-bf="x_web_status == 'DELIVERED_AWAITING'" decoration-success="x_web_status in ('DELIVERED', 'COMPLETED')" decoration-danger="x_web_status == 'CANCELLED'" decoration-muted="x_web_status == 'REFUNDED'" optional="show"/>
             </xpath>
         </field>
     </record>

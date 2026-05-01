@@ -162,3 +162,44 @@ export interface RawUserResponse {
     bio?: string | null;
     createdAt: string;
 }
+
+export type OrderStatusType =
+    | 'PENDING_PICKUP'
+    | 'PACKAGING'
+    | 'SHIPPING'
+    | 'DELIVERED_AWAITING'
+    | 'DELIVERED'
+    | 'COMPLETED'
+    | 'CANCELLED'
+    | 'REFUNDED';
+
+export interface MappedOrderItem {
+    productId: number;
+    productName: string;
+    quantity: number;
+    price: number;
+    image?: string;
+}
+
+export interface MappedOrder {
+    id: number;
+    orderNumber: string;
+    customerName: string;
+    phone: string;
+    status: OrderStatusType; 
+    createdAt: string;
+    subtotal: number;
+    shippingFee: number;
+    total: number;
+    paymentMethod: string;
+    shippingAddress: {
+        fullName: string;
+        phone: string;
+        email: string;
+        address: string;
+        note?: string;
+    };
+    items: MappedOrderItem[];
+    artisanId?: number;
+    artisanName?: string;
+}

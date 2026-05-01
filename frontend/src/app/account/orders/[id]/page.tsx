@@ -13,8 +13,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
 import useMyOrders from '@/hooks/useMyOrders'; 
-import { RawOrderDetail, RawOrderDetailItem } from '@/types/apiTypes';
-import type { StoredOrder } from '@/lib/ordersStorage';
+import { RawOrderDetail, RawOrderDetailItem, MappedOrder, OrderStatusType } from '@/types/apiTypes';
 import toast, { Toaster } from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -44,28 +43,20 @@ const getProductImageUrl = (path: string | null | undefined): string => {
 };
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: React.ElementType }> = {
-    pending_pickup: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
-    packaging: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
-    shipping: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    // MÁNH KHÓE UI: Ẩn DELIVERED_AWAITING thành Đang giao hàng
-    delivered_awaiting: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    delivered: { label: 'Đã giao hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
-    completed: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
-    cancelled: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
-    refunded: { label: 'Đã hoàn tiền', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: XCircle },
+    PENDING_PICKUP: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
+    PACKAGING: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
+    SHIPPING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    DELIVERED_AWAITING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    DELIVERED: { label: 'Đã giao hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
+    COMPLETED: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
+    CANCELLED: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
+    REFUNDED: { label: 'Đã hoàn tiền', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: XCircle },
 };
 
 const paymentLabels: Record<string, string> = {
     cod: 'Thanh toán khi nhận hàng (COD)',
     bank_transfer: 'Chuyển khoản ngân hàng',
     credit_card: 'Thẻ tín dụng / Ghi nợ',
-};
-
-// Loại bỏ lỗi Type Status cũ của StoredOrder
-type OrderWithArtisan = Omit<StoredOrder, 'status'> & { 
-    status: string;
-    artisanId?: number; 
-    artisanName?: string;
 };
 
 export default function CustomerOrderDetailPage() {
@@ -75,7 +66,7 @@ export default function CustomerOrderDetailPage() {
     const { cancelOrder, refetch } = useMyOrders();
     
     const orderId = Number(params.id);
-    const [order, setOrder] = useState<OrderWithArtisan | null>(null);
+    const [order, setOrder] = useState<MappedOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -98,18 +89,10 @@ export default function CustomerOrderDetailPage() {
                 const response = await axiosAuth.get<RawOrderDetail>(`/orders/${orderId}`);
                 const orderData = response.data;
 
-                const mapBackendStatus = (s: string) => {
-                    switch (s) {
-                        case 'PENDING_PICKUP': return 'pending_pickup';
-                        case 'PACKAGING': return 'packaging';
-                        case 'SHIPPING': return 'shipping';
-                        case 'DELIVERED_AWAITING': return 'delivered_awaiting';
-                        case 'DELIVERED': return 'delivered';
-                        case 'COMPLETED': return 'completed';
-                        case 'CANCELLED': return 'cancelled';
-                        case 'REFUNDED': return 'refunded';
-                        default: return 'pending_pickup';
-                    }
+                const mapBackendStatus = (s: string): OrderStatusType => {
+                    const valid = ['PENDING_PICKUP', 'PACKAGING', 'SHIPPING', 'DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'];
+                    const upper = s?.toUpperCase();
+                    return valid.includes(upper) ? (upper as OrderStatusType) : 'PENDING_PICKUP';
                 };
 
                 const mapBackendPayment = (m: string) => {
@@ -123,7 +106,7 @@ export default function CustomerOrderDetailPage() {
 
                 const subtotal = Number(orderData.totalPrice || 0);
 
-                const mappedOrder: OrderWithArtisan = {
+                const mappedOrder: MappedOrder = {
                     id: orderData.id,
                     orderNumber: `ART-${orderData.id}`,
                     customerName: orderData.customerName,
@@ -172,7 +155,6 @@ export default function CustomerOrderDetailPage() {
         }
     };
 
-    // Hàm gọi API xác nhận nhận hàng
     const confirmDelivery = async () => {
         const toastId = toast.loading('Đang cập nhật trạng thái...');
         setIsConfirming(true);
@@ -180,8 +162,8 @@ export default function CustomerOrderDetailPage() {
             await axiosAuth.put(`/orders/${orderId}/confirm-delivery/`);
             toast.success(<b>Đã xác nhận nhận hàng! Cảm ơn bạn.</b>, { id: toastId });
             
-            setOrder(prev => prev ? { ...prev, status: 'delivered' } : null);
-            if (refetch) refetch(); // Làm mới danh sách đơn ngầm
+            setOrder(prev => prev ? { ...prev, status: 'DELIVERED' } : null);
+            if (refetch) refetch(); 
         } catch (err: any) {
             toast.error(<b>{err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận.'}</b>, { id: toastId });
         } finally {
@@ -210,7 +192,7 @@ export default function CustomerOrderDetailPage() {
             await cancelOrder(orderId, cancelNoteText);
             toast.success(<b>Đã hủy đơn hàng #{orderId} thành công!</b>, { id: toastId });
             
-            setOrder(prev => prev ? { ...prev, status: 'cancelled', shippingAddress: { ...prev.shippingAddress, note: (prev.shippingAddress.note ? prev.shippingAddress.note + " | " : "") + cancelNoteText } } : null);
+            setOrder(prev => prev ? { ...prev, status: 'CANCELLED', shippingAddress: { ...prev.shippingAddress, note: (prev.shippingAddress.note ? prev.shippingAddress.note + " | " : "") + cancelNoteText } } : null);
             
             closeCancelModal();
         } catch (err: any) {
@@ -252,7 +234,7 @@ export default function CustomerOrderDetailPage() {
     }
 
     const StatusIcon = statusConfig[order.status]?.icon || Package;
-    const isCancelled = order.status === 'cancelled';
+    const isCancelled = order.status === 'CANCELLED';
     
     const rawNote = order.shippingAddress.note || "";
     const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
@@ -260,8 +242,8 @@ export default function CustomerOrderDetailPage() {
     const normalNoteText = hasCancelReason ? "" : rawNote;
 
     const displayArtisanName = order.artisanName || 'Gian Hàng Chế Tác';
-    const canCancel = !['delivered', 'completed', 'cancelled', 'refunded'].includes(order.status);
-    const canConfirmDelivery = ['shipping', 'delivered_awaiting'].includes(order.status);
+    const canCancel = !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status);
+    const canConfirmDelivery = ['SHIPPING', 'DELIVERED_AWAITING'].includes(order.status);
 
     return (
         <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7] flex flex-col">

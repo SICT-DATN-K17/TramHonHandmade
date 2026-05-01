@@ -17,7 +17,8 @@ import {
     FileText,
     DollarSign,
     Calendar,
-    Store
+    Store,
+    CheckCircle2
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,14 @@ import useAxiosAuth from '@/hooks/useAxiosAuth';
 import { uploadToCloudinary } from '@/lib/cloudinary'; 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+// --- ĐỊNH NGHĨA TRẠNG THÁI CHUẨN ---
+const chatStatusConfig: Record<string, { label: string; className: string }> = {
+    PENDING: { label: 'Đang chờ', className: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+    NEGOTIATING: { label: 'Đang thương lượng', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+    ORDER_CREATED: { label: 'Đã tạo báo giá', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    CLOSED: { label: 'Hoàn thành', className: 'bg-green-50 text-green-700 border-green-200' },
+};
 
 // --- HELPER FUNCTIONS ---
 const getFullImageUrl = (path: string | null | undefined) => {
@@ -63,7 +72,6 @@ export default function ArtisanChatDetailPage() {
     const router = useRouter();
     const chatId = Array.isArray(params.chatId) ? Number(params.chatId[0]) : Number(params.chatId);
 
-    // --- STATE ---
     const [chat, setChat] = useState<Chat | null>(null);
     const [customer, setCustomer] = useState<UserType | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -75,17 +83,14 @@ export default function ArtisanChatDetailPage() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-    // --- STATE FOR PROPOSAL MODAL ---
     const [isProposalOpen, setIsProposalOpen] = useState(false);
     const [proposalPrice, setProposalPrice] = useState<string>('');
     const [proposalNote, setProposalNote] = useState('');
 
-    // --- REFS ---
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const wsRef = useRef<WebSocket | null>(null); 
 
-    // --- SCROLL TO BOTTOM ---
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, []);
@@ -94,7 +99,6 @@ export default function ArtisanChatDetailPage() {
         scrollToBottom();
     }, [messages, scrollToBottom]);
 
-    // --- 1. FETCH DATA ---
     const fetchChatData = useCallback(async () => {
         if (!chatId || Number.isNaN(chatId)) {
             toast.error('ID cuộc trò chuyện không hợp lệ');
@@ -122,7 +126,6 @@ export default function ArtisanChatDetailPage() {
         fetchChatData();
     }, [fetchChatData]);
 
-    // --- 2. WEBSOCKET CONNECTION ---
     useEffect(() => {
         if (!chatId || !session?.user?.apiAccessToken) return;
 
@@ -159,7 +162,6 @@ export default function ArtisanChatDetailPage() {
         };
     }, [chatId, session?.user?.apiAccessToken]);
 
-    // --- HANDLERS ---
     const handleSendProposal = async () => {
         if (!proposalPrice || isNaN(Number(proposalPrice))) {
             toast.error("Vui lòng nhập giá hợp lệ");
@@ -189,6 +191,9 @@ export default function ArtisanChatDetailPage() {
             };
 
             await axiosAuth.post(`/chat/${chatId}/send-message/`, payload);
+
+            // Cập nhật Local State trạng thái thành Đã tạo báo giá
+            setChat(prev => prev ? { ...prev, status: 'ORDER_CREATED' } : prev);
 
             toast.success("Đã gửi đề xuất đơn hàng!", { id: proposalToast });
             setIsProposalOpen(false);
@@ -245,6 +250,10 @@ export default function ArtisanChatDetailPage() {
 
             await axiosAuth.post(`/chat/${chatId}/send-message/`, payload);
 
+            if (chat.status === 'PENDING') {
+                setChat(prev => prev ? { ...prev, status: 'NEGOTIATING' } : prev);
+            }
+
             setMessageText('');
             removeImagePreview();
             toast.dismiss(sendToast);
@@ -266,7 +275,6 @@ export default function ArtisanChatDetailPage() {
         }
     };
 
-    // --- RENDER ---
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[calc(100vh-80px)] bg-[#FDFBF7]">
@@ -281,6 +289,7 @@ export default function ArtisanChatDetailPage() {
     if (!chat) return <div className="p-8 text-center text-[#3F2E23]">Không tìm thấy cuộc trò chuyện.</div>;
 
     const isChatClosed = chat.status === 'CLOSED';
+    const currentStatus = chat.status && chatStatusConfig[chat.status] ? chatStatusConfig[chat.status] : chatStatusConfig['PENDING'];
     const hasReferenceImage = !!chat.referenceImage;
 
     return (
@@ -307,11 +316,10 @@ export default function ArtisanChatDetailPage() {
                             </h1>
                             
                             <div className="flex items-center gap-2">
-                                {isChatClosed && (
-                                    <Badge className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 font-medium">
-                                        Đã kết thúc
-                                    </Badge>
-                                )}
+                                {/* HIỂN THỊ TRẠNG THÁI THEO BỘ LỌC ĐÃ CHUẨN HÓA */}
+                                <Badge variant="outline" className={`${currentStatus.className} shadow-sm font-bold`}>
+                                    {currentStatus.label}
+                                </Badge>
                                 <span className="text-sm font-medium text-[#6B4F3E] hidden sm:inline ml-1">
                                     | {chat.title}
                                 </span>
@@ -439,9 +447,15 @@ export default function ArtisanChatDetailPage() {
                                                                     </div>
                                                                 )}
                                                                 
-                                                                <div className="mt-3 pt-3 border-t border-[#E8D5B5]/50 text-center text-xs font-bold text-[#D96C39] bg-orange-50 py-2 rounded-lg">
-                                                                    Đang chờ khách hàng xác nhận...
-                                                                </div>
+                                                                {isChatClosed ? (
+                                                                    <div className="mt-3 pt-3 border-t border-[#E8D5B5]/50 text-center text-xs font-bold text-green-700 bg-green-50 py-2 rounded-lg flex items-center justify-center gap-1.5">
+                                                                        <CheckCircle2 size={16} /> Khách hàng đã thanh toán
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="mt-3 pt-3 border-t border-[#E8D5B5]/50 text-center text-xs font-bold text-[#D96C39] bg-orange-50 py-2 rounded-lg">
+                                                                        Đang chờ khách hàng xác nhận...
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     );
@@ -481,7 +495,7 @@ export default function ArtisanChatDetailPage() {
                     <div className="p-4 border-t border-[#E8D5B5] bg-white flex-shrink-0 z-10">
                         {isChatClosed ? (
                             <div className="bg-[#FFF8F0] border border-[#E8D5B5] p-3 rounded-xl text-center text-sm font-bold text-[#D96C39] flex items-center justify-center gap-2">
-                                <X size={18} /> Phiên trò chuyện này đã kết thúc.
+                                <CheckCircle2 size={18} /> Khách hàng đã thanh toán và chốt đơn! Cuộc trò chuyện này đã hoàn thành.
                             </div>
                         ) : (
                             <div className="max-w-4xl mx-auto w-full bg-white p-2 rounded-2xl border border-[#E8D5B5] shadow-sm">
@@ -609,7 +623,7 @@ export default function ArtisanChatDetailPage() {
                                 if (chat?.budget) setProposalPrice(chat.budget.toString());
                                 setIsProposalOpen(true);
                             }}
-                            className="w-full bg-[#3F2E23] text-white hover:bg-black font-bold h-14 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-base"
+                            className="w-full bg-[#3F2E23] text-white hover:bg-black font-bold h-14 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-base disabled:opacity-50"
                             disabled={isChatClosed}
                         >
                             <FileText size={18} /> Chốt & Gửi Báo Giá

@@ -6,8 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
-import type { StoredOrder } from '@/lib/ordersStorage';
-import { RawOrderDetail } from '@/types/apiTypes';
+import { RawOrderDetail, MappedOrder, OrderStatusType } from '@/types/apiTypes';
 import useAxiosAuth from "@/hooks/useAxiosAuth";
 import { CheckCircle2, Copy, FileText, ShoppingBag, Home } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
@@ -34,7 +33,7 @@ function CheckoutSuccessContent() {
     const axiosAuth = useAxiosAuth();
 
     const orderId = searchParams.get('orderId');
-    const [order, setOrder] = useState<StoredOrder | null>(null);
+    const [order, setOrder] = useState<MappedOrder | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -48,18 +47,17 @@ function CheckoutSuccessContent() {
                 const response = await axiosAuth.get<RawOrderDetail>(`/orders/${orderId}`);
                 const orderData = response.data;
 
-                const mapBackendStatusToFrontend = (backendStatus: string): StoredOrder['status'] => {
-                    switch (backendStatus) {
-                        case 'PENDING': return 'pending';
-                        case 'IN_PROGRESS': return 'processing';
-                        case 'SHIPPED': return 'shipped';
-                        case 'COMPLETED': return 'delivered';
-                        case 'CANCELLED': return 'cancelled';
-                        default: return 'pending';
-                    }
+                const mapBackendStatusToFrontend = (backendStatus: string): OrderStatusType => {
+                    const validStatuses = [
+                        'PENDING_PICKUP', 'PACKAGING', 'SHIPPING', 'DELIVERED_AWAITING',
+                        'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'
+                    ];
+                    return validStatuses.includes(backendStatus?.toUpperCase()) 
+                        ? (backendStatus.toUpperCase() as OrderStatusType) 
+                        : 'PENDING_PICKUP';
                 };
 
-                const mapBackendPaymentMethodToFrontend = (backendMethod: string): StoredOrder['paymentMethod'] => {
+                const mapBackendPaymentMethodToFrontend = (backendMethod: string): string => {
                     switch (backendMethod) {
                         case 'COD': return 'cod';
                         case 'ONLINE':
@@ -69,7 +67,7 @@ function CheckoutSuccessContent() {
                     }
                 };
 
-                const mappedOrder: StoredOrder = {
+                const mappedOrder: MappedOrder = {
                     id: orderData.id,
                     orderNumber: `ART-${orderData.id}`,
                     customerName: orderData.customerName,
@@ -107,9 +105,7 @@ function CheckoutSuccessContent() {
         fetchOrder();
     }, [orderId, router, axiosAuth]);
 
-    if (loading) {
-        return <LoadingState />;
-    }
+    if (loading) return <LoadingState />;
 
     if (!order) {
         return (
@@ -120,10 +116,7 @@ function CheckoutSuccessContent() {
                         <div className="text-6xl mb-6">🔍</div>
                         <h1 className="text-3xl font-extrabold text-[#3F2E23] mb-4">Không tìm thấy đơn hàng</h1>
                         <p className="text-[#6B4F3E] mb-8 text-lg">Đơn hàng không tồn tại hoặc bạn không có quyền xem đơn hàng này.</p>
-                        <Link
-                            href="/shop/products"
-                            className="inline-flex items-center gap-2 bg-[#D96C39] text-white px-8 py-4 rounded-full font-bold shadow-md hover:bg-[#C25B2D] hover:-translate-y-1 transition-all"
-                        >
+                        <Link href="/shop/products" className="inline-flex items-center gap-2 bg-[#D96C39] text-white px-8 py-4 rounded-full font-bold shadow-md hover:bg-[#C25B2D] hover:-translate-y-1 transition-all">
                             <ShoppingBag size={20} /> Về cửa hàng
                         </Link>
                     </div>
@@ -181,10 +174,9 @@ function CheckoutSuccessContent() {
                                     <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Mã đơn hàng</p>
                                     <p className="font-extrabold text-[#3F2E23] text-lg">{order.orderNumber}</p>
                                 </div>
-                                {/* ĐÃ XÓA TRẠNG THÁI "ĐANG CHỜ..." VÀ THAY BẰNG LỜI NHẮN THÂN THIỆN */}
                                 <div>
                                     <p className="text-xs font-bold text-[#6B4F3E] uppercase tracking-wider mb-1">Tiến độ</p>
-                                    <p className="font-medium text-[#D96C39] bg-[#FFF8F0] inline-block px-3 py-1.5 rounded-md border border-[#E8D5B5] text-sm flex items-center gap-1.5">
+                                    <p className="font-medium text-[#D96C39] bg-[#FFF8F0] inline-flex px-3 py-1.5 rounded-md border border-[#E8D5B5] text-sm items-center gap-1.5">
                                         <CheckCircle2 size={16} /> Đã tiếp nhận đơn hàng thành công!
                                     </p>
                                 </div>
@@ -247,7 +239,6 @@ function CheckoutSuccessContent() {
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {/* Shipping Address */}
                             <div>
                                 <h3 className="text-sm font-bold text-[#6B4F3E] uppercase tracking-wider mb-3 pb-2 border-b border-[#E8D5B5]">Giao hàng đến</h3>
                                 <div className="bg-[#FDFBF7] p-5 rounded-xl border border-[#E8D5B5] space-y-2">
@@ -262,7 +253,6 @@ function CheckoutSuccessContent() {
                                 </div>
                             </div>
 
-                            {/* Order Summary & Items */}
                             <div>
                                 <h3 className="text-sm font-bold text-[#6B4F3E] uppercase tracking-wider mb-3 pb-2 border-b border-[#E8D5B5]">Sản phẩm ({order.items.length})</h3>
                                 <div className="space-y-3 mb-6 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">

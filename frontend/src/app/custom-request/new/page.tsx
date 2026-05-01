@@ -67,10 +67,24 @@ function NewCustomRequestForm() {
         };
     }, [previewUrl]);
 
+    // Format tiền trực tiếp khi gõ để hiển thị đẹp hơn
+    const formatCurrency = (value: string) => {
+        const numericValue = value.replace(/\D/g, ''); // Bỏ mọi ký tự không phải số
+        if (!numericValue) return '';
+        return new Intl.NumberFormat('vi-VN').format(Number(numericValue));
+    };
+
     const handleInputChange = (field: keyof FormValues, value: string) => {
-        setFormValues((prev) => ({ ...prev, [field]: value }));
-        if (errors[field]) {
-            setErrors((prev) => ({ ...prev, [field]: undefined }));
+        if (field === 'expectedPrice') {
+            // Chỉ lưu số thuần túy vào state
+            const rawValue = value.replace(/\D/g, '');
+            setFormValues((prev) => ({ ...prev, expectedPrice: rawValue }));
+        } else {
+            setFormValues((prev) => ({ ...prev, [field]: value }));
+        }
+        
+        if (errors[field as keyof FormErrors]) {
+            setErrors((prev) => ({ ...prev, [field as keyof FormErrors]: undefined }));
         }
     };
 
@@ -128,7 +142,8 @@ function NewCustomRequestForm() {
                 artisanId: Number(formValues.artisanId),
                 title: formValues.title.trim(),
                 description: formValues.description.trim() || null,
-                budget: formValues.expectedPrice ? Number(formValues.expectedPrice) : null,
+                // Ép kiểu chắc chắn là số nguyên để không bị lỗi thập phân hay mất mát dữ liệu
+                budget: formValues.expectedPrice ? parseInt(formValues.expectedPrice, 10) : null,
                 referenceImage: imageUrl || null,
             };
 
@@ -249,16 +264,18 @@ function NewCustomRequestForm() {
                         <div>
                             <Label htmlFor="expectedPrice" className="text-base font-bold text-[#3F2E23]">Ngân sách dự kiến</Label>
                             <p className="text-xs text-[#6B4F3E] mb-2 mt-1">Để thợ chọn vật liệu phù hợp nhất (Không bắt buộc)</p>
-                            <Input
-                                id="expectedPrice"
-                                type="number"
-                                value={formValues.expectedPrice}
-                                onChange={(e) => handleInputChange('expectedPrice', e.target.value)}
-                                placeholder="VD: 1000000 ₫"
-                                className="h-12 rounded-xl border-[#E8D5B5] focus-visible:ring-[#D96C39] bg-gray-50/50"
-                                disabled={submitting}
-                                min="0"
-                            />
+                            <div className="relative">
+                                <Input
+                                    id="expectedPrice"
+                                    type="text"
+                                    value={formValues.expectedPrice ? formatCurrency(formValues.expectedPrice) : ''}
+                                    onChange={(e) => handleInputChange('expectedPrice', e.target.value)}
+                                    placeholder="VD: 1.000.000"
+                                    className="h-12 rounded-xl border-[#E8D5B5] focus-visible:ring-[#D96C39] bg-gray-50/50 pr-8 font-semibold"
+                                    disabled={submitting}
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B4F3E] font-bold">₫</span>
+                            </div>
                         </div>
 
                         <div>

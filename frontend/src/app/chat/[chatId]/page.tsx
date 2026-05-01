@@ -7,10 +7,8 @@ import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { useSession } from 'next-auth/react';
 import Header from '@/components/common/Header';
-// Đã xóa import Footer thừa
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-// Đã bổ sung MessageSquare vào đây
 import { ArrowLeft, Store, Upload, X, Loader2, Send, MessageSquare } from 'lucide-react';
 import type { Chat, ChatMessage, Artisan, User } from '@/types';
 import type { RawChatDataResponse, RawChatMessage } from '@/types/apiTypes';
@@ -144,6 +142,10 @@ export default function ChatPage() {
                     if (exists) return prev;
                     return [...prev, newMsg];
                 });
+                // Nếu nhận được báo giá thì đổi trạng thái sang ORDER_CREATED cho realtime[cite: 26]
+                if (newMsg.type === 'ORDER_PROPOSAL') {
+                    setChat(prev => prev ? { ...prev, status: 'ORDER_CREATED' } : prev);
+                }
                 setTimeout(() => {
                     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                 }, 100);
@@ -217,7 +219,6 @@ export default function ChatPage() {
         }
     };
 
-    // Đã thay 'any' bằng Record<string, unknown> để làm hài lòng ESLint
     const handleBuyNow = (e: React.MouseEvent, product: Record<string, any>) => {
         e.preventDefault();
         e.stopPropagation();
@@ -445,8 +446,8 @@ export default function ChatPage() {
                                                     )}
 
                                                     {isChatClosed && (
-                                                        <div className="text-center text-xs font-bold text-red-500 bg-red-50 py-2 rounded-lg border border-red-100">
-                                                            Phiên này đã đóng / Đơn đã chốt
+                                                        <div className="text-center text-xs font-bold text-green-600 bg-green-50 py-2 rounded-lg border border-green-100">
+                                                            Bạn đã thanh toán thành công!
                                                         </div>
                                                     )}
                                                 </div>
@@ -506,7 +507,7 @@ export default function ChatPage() {
                 <div className="border-t border-[#E8D5B5] pt-4 flex-shrink-0 bg-[#FDFBF7]">
                     {isChatClosed ? (
                         <div className="bg-[#FFF8F0] border border-[#E8D5B5] rounded-xl p-4 text-center text-[#D96C39] text-sm font-bold flex items-center justify-center gap-2">
-                            <X size={18} /> Phiên trò chuyện này đã kết thúc.
+                            <X size={18} /> Đơn hàng này đã được xác nhận.
                         </div>
                     ) : (
                         <div className="bg-white p-2 rounded-2xl border border-[#E8D5B5] shadow-sm">

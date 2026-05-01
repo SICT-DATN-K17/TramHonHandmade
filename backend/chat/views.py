@@ -206,8 +206,9 @@ class ChatViewSet(ModelViewSet):
             sender_type=sender_type
         )
         
-        # Cập nhật trạng thái chat nếu nghệ nhân trả lời tin nhắn đầu tiên
-        if sender_type == 'ARTISAN' and chat.status == 'PENDING':
+        if message_type == 'ORDER_PROPOSAL':
+            chat.status = 'ORDER_CREATED'
+        elif sender_type == 'ARTISAN' and chat.status == 'PENDING':
             chat.status = 'NEGOTIATING'
         
         chat.save()

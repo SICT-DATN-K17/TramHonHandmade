@@ -10,12 +10,10 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
-import { RawOrderDetail } from '@/types/apiTypes';
-import type { StoredOrder } from '@/lib/ordersStorage';
+import { RawOrderDetail, MappedOrder, OrderStatusType } from '@/types/apiTypes';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import toast, { Toaster } from 'react-hot-toast';
-import type { PaymentMethod } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -34,7 +32,6 @@ const getProductImageUrl = (path: string | null | undefined): string => {
     return `${API_URL}${normalizedPath}`;
 };
 
-// Cập nhật bộ trạng thái chuẩn (Đã thêm DELIVERED_AWAITING)
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
     PENDING_PICKUP: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
     PACKAGING: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
@@ -58,11 +55,10 @@ export default function ArtisanOrderDetailPage() {
     const axiosAuth = useAxiosAuth();
 
     const orderId = Number(params.id);
-    const [order, setOrder] = useState<StoredOrder | null>(null);
+    const [order, setOrder] = useState<MappedOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // State cho Modal Hủy đơn
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [isCancelling, setIsCancelling] = useState(false);
@@ -72,7 +68,13 @@ export default function ArtisanOrderDetailPage() {
             const response = await axiosAuth.get<RawOrderDetail>(`/orders/${orderId}/`);
             const orderData = response.data;
 
-            const mapBackendPayment = (m: string): PaymentMethod => {
+            const mapBackendStatus = (s: string): OrderStatusType => {
+                const valid = ['PENDING_PICKUP', 'PACKAGING', 'SHIPPING', 'DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'];
+                const upper = s?.toUpperCase();
+                return valid.includes(upper) ? (upper as OrderStatusType) : 'PENDING_PICKUP';
+            };
+
+            const mapBackendPayment = (m: string) => {
                 switch (m) {
                     case 'COD': return 'cod';
                     case 'ONLINE':
@@ -81,12 +83,12 @@ export default function ArtisanOrderDetailPage() {
                 }
             };
 
-            const mappedOrder: any = {
+            const mappedOrder: MappedOrder = {
                 id: orderData.id,
                 orderNumber: `ART-${orderData.id}`,
                 customerName: orderData.customerName,
                 phone: orderData.customerPhone,
-                status: orderData.status?.toUpperCase() || 'PENDING_PICKUP',
+                status: mapBackendStatus(orderData.status),
                 createdAt: orderData.orderDate,
                 subtotal: Number(orderData.totalPrice || 0),
                 shippingFee: Number(orderData.shippingFee || 0),
@@ -99,7 +101,7 @@ export default function ArtisanOrderDetailPage() {
                     address: orderData.shippingAddress,
                     note: orderData.note || undefined,
                 },
-                items: orderData.items.map((item) => ({
+                items: orderData.items.map((item: any) => ({
                     productId: item.productId,
                     productName: item.productName,
                     quantity: Number(item.quantity || 0),
@@ -140,7 +142,7 @@ export default function ArtisanOrderDetailPage() {
             toast.success('Đã hủy đơn hàng thành công!');
             setIsCancelModalOpen(false);
             setCancelReason('');
-            await fetchOrder(); // Refresh lại data
+            await fetchOrder();
         } catch (error: any) {
             console.error('Error cancelling order:', error);
             const msg = error.response?.data?.message || 'Không thể hủy đơn hàng lúc này';
@@ -176,7 +178,6 @@ export default function ArtisanOrderDetailPage() {
     const currentStatusConfig = statusConfig[order.status] || { label: order.status, bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: Package };
     const StatusIcon = currentStatusConfig.icon;
 
-    // Chặn hủy đơn nếu đã vào các trạng thái hoàn tất/chờ xác nhận
     const canCancel = !['DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status);
     const isCancelled = order.status === 'CANCELLED';
 
@@ -199,7 +200,6 @@ export default function ArtisanOrderDetailPage() {
                 </Button>
 
                 <div className="flex items-center gap-3">
-                    {/* Chỉ hiện nút Hủy đơn nếu đơn hàng ở trạng thái hợp lệ */}
                     {canCancel && (
                         <Button
                             onClick={() => setIsCancelModalOpen(true)}
@@ -221,7 +221,6 @@ export default function ArtisanOrderDetailPage() {
                         <Calendar size={14} /> {formatDate(order.createdAt)}
                     </p>
                 </div>
-                {/* Trạng thái hiển thị */}
                 <div className={`px-4 py-2 rounded-full border ${currentStatusConfig.bg} ${currentStatusConfig.border} ${currentStatusConfig.text} text-sm font-bold flex items-center gap-1.5 shadow-sm`}>
                     <StatusIcon size={16} /> {currentStatusConfig.label}
                 </div>

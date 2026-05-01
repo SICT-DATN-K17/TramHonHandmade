@@ -133,7 +133,7 @@ def create_order_from_request(validated_data, user):
             Product.objects.bulk_update(products_to_update, ['quantity_sold'])
 
             if chat:
-                chat.status = 'ORDER_CREATED'
+                chat.status = 'CLOSED'
                 chat.save(update_fields=['status'])
 
             sync_order_to_odoo_task.delay(order.id)

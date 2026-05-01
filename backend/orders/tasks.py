@@ -75,14 +75,7 @@ def sync_order_to_odoo_task(self, order_id):
                 template_id = template_records[0] if template_records else False
 
                 if template_id:
-                    compose_wizard_id = odoo.execute('mail.compose.message', 'create', {
-                        'model': 'sale.order',
-                        'res_id': so_id,
-                        'template_id': template_id,
-                        'composition_mode': 'comment',
-                    })
-
-                    odoo.execute('mail.compose.message', 'action_send_mail', [compose_wizard_id])
+                    odoo.execute('mail.template', 'send_mail', [template_id], so_id, True)
                     logger.info(f"Đã TỰ ĐỘNG GỬI EMAIL Xác nhận cho SO {so_id} (Template ID: {template_id}).")
                 else:
                     logger.warning("Không tìm thấy mẫu email tên 'Bán hàng: Xác nhận đơn hàng' trong Odoo!")
