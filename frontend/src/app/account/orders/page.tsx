@@ -1,14 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import useMyOrders from "@/hooks/useMyOrders";
+import useAxiosAuth from "@/hooks/useAxiosAuth";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, Package, Calendar, ChevronRight, AlertCircle as AlertCircleIcon } from "lucide-react";
+import { Loader2, Package, Calendar, ChevronRight, AlertCircle as AlertCircleIcon, CheckCircle2 } from "lucide-react";
 import { Header, Footer } from "@/components/common";
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -28,10 +29,24 @@ const getProductImageUrl = (path: string | null | undefined): string => {
 };
 
 export default function MyOrdersPage() {
-    // Đã loại bỏ cancelOrder và các state của Modal Hủy
-    const { orders, isLoading, error } = useMyOrders();
+    const { orders, isLoading, error, refetch } = useMyOrders(); // Đổi mutate -> refetch
+    const axiosAuth = useAxiosAuth();
+    const [isConfirmingId, setIsConfirmingId] = useState<number | null>(null);
 
-    // Hàm helper render badge
+    const confirmDelivery = async (orderId: number) => {
+        setIsConfirmingId(orderId);
+        const toastId = toast.loading('Đang cập nhật trạng thái...');
+        try {
+            await axiosAuth.put(`/orders/${orderId}/confirm-delivery/`);
+            toast.success(<b>Đã xác nhận nhận hàng! Cảm ơn bạn.</b>, { id: toastId });
+            if (refetch) refetch(); // Gọi refetch thay vì mutate
+        } catch (err: any) {
+            toast.error(<b>{err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận.'}</b>, { id: toastId });
+        } finally {
+            setIsConfirmingId(null);
+        }
+    };
+
     const renderStatusBadge = (status: string) => {
         const upperStatus = status?.toUpperCase() || '';
         
@@ -39,7 +54,8 @@ export default function MyOrdersPage() {
             PENDING_PICKUP: { label: "Đang chờ lấy hàng", className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "⏳" },
             PACKAGING: { label: "Đang đóng gói hàng", className: "bg-blue-50 text-blue-700 border-blue-200", icon: "📦" },
             SHIPPING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
-            DELIVERED: { label: "Đã nhận hàng", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "📬" },
+            DELIVERED_AWAITING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
+            DELIVERED: { label: "Đã giao hàng", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "📬" },
             COMPLETED: { label: "Hoàn thành", className: "bg-green-50 text-green-700 border-green-200", icon: "✅" },
             CANCELLED: { label: "Đã hủy", className: "bg-red-50 text-red-700 border-red-200", icon: "❌" },
             REFUNDED: { label: "Đã hoàn tiền", className: "bg-gray-50 text-gray-700 border-gray-200", icon: "💸" },
@@ -60,7 +76,6 @@ export default function MyOrdersPage() {
             <Header />
 
             <main className="flex-grow container mx-auto px-4 py-12 max-w-6xl">
-                {/* Header Page */}
                 <div className="mb-12 text-center">
                     <h1 className="text-4xl font-extrabold mb-3" style={{ color: '#3F2E23' }}>📦 Lịch sử đơn hàng</h1>
                     <div className="h-1 w-24 mx-auto rounded-full mb-4" style={{ backgroundColor: '#D96C39' }}></div>
@@ -96,9 +111,11 @@ export default function MyOrdersPage() {
                     <div className="space-y-6 max-w-5xl mx-auto">
                         {orders.map((order, idx) => {
                             const isCancelled = order.status?.toUpperCase() === 'CANCELLED';
-                            const rawNote = order.shippingAddress?.note || "";
+                            const rawNote = order.note || ""; // Lấy thẳng note từ api thay vì shippingAddress.note
                             const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
                             const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
+                            
+                            const canConfirmDelivery = ['SHIPPING', 'DELIVERED_AWAITING'].includes(order.status?.toUpperCase() || '');
 
                             return (
                                 <div
@@ -106,7 +123,6 @@ export default function MyOrdersPage() {
                                     className={`group overflow-hidden rounded-2xl border transition-all duration-500 hover:shadow-md bg-white animate-in fade-in slide-in-from-bottom-4 ${isCancelled ? 'border-red-200' : 'border-[#E8D5B5]'}`}
                                     style={{ animationFillMode: 'both', animationDelay: `${idx * 100}ms` }}
                                 >
-                                    {/* Header Order */}
                                     <div className={`flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 ${isCancelled ? 'bg-red-50/50 border-red-100' : 'bg-[#FFF8F0] border-[#E8D5B5]'}`}>
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
                                             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm ${isCancelled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-[#E8D5B5] text-[#3F2E23]'}`}>
@@ -117,10 +133,9 @@ export default function MyOrdersPage() {
                                                 <Calendar size={16} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />{formatDate(order.createdAt || order.orderDate)}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3">{renderStatusBadge(order.status)}</div>
+                                        <div className="flex items-center gap-3">{renderStatusBadge(order.status || '')}</div>
                                     </div>
 
-                                    {/* Lý do hủy đơn */}
                                     {isCancelled && hasCancelReason && (
                                         <div className="px-6 pt-5">
                                             <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start shadow-sm">
@@ -133,7 +148,6 @@ export default function MyOrdersPage() {
                                         </div>
                                     )}
 
-                                    {/* Body Order */}
                                     <div className="p-6">
                                         <div className="space-y-4">
                                             {order.items.map((item: any, index: number) => {
@@ -161,18 +175,32 @@ export default function MyOrdersPage() {
                                         </div>
                                     </div>
 
-                                    {/* Footer Order (Đã loại bỏ nút Hủy Đơn) */}
                                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E8D5B5] px-6 py-5 bg-gray-50/30">
                                         <div className="flex items-center gap-3">
                                             <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
                                             <span className="text-2xl font-black" style={{ color: '#D96C39' }}>
-                                                {formatCurrency(Number(order.totalPrice || order.total))}
+                                                {formatCurrency(Number(order.totalPrice || order.total || 0))}
                                             </span>
                                         </div>
 
                                         <div className="flex items-center gap-3 w-full sm:w-auto">
+                                            {canConfirmDelivery && (
+                                                <Button 
+                                                    onClick={() => confirmDelivery(order.id)}
+                                                    disabled={isConfirmingId === order.id}
+                                                    className="flex-1 sm:flex-none text-white font-bold h-11 rounded-xl shadow-md transition-all hover:-translate-y-0.5" 
+                                                    style={{ backgroundColor: '#10B981' }} 
+                                                >
+                                                    {isConfirmingId === order.id ? (
+                                                        <Loader2 className="animate-spin h-5 w-5" />
+                                                    ) : (
+                                                        <><CheckCircle2 size={18} className="mr-1.5" /> Đã nhận được hàng</>
+                                                    )}
+                                                </Button>
+                                            )}
+
                                             <Link href={`/account/orders/${order.id}`} className="flex-1 sm:flex-none">
-                                                <Button className="w-full sm:w-auto text-white font-bold h-11 rounded-xl shadow-md hover:bg-black hover:shadow-lg transition-all" style={{ backgroundColor: '#3F2E23' }}>
+                                                <Button variant="outline" className="w-full sm:w-auto text-[#3F2E23] border-[#E8D5B5] font-bold h-11 rounded-xl hover:bg-[#FFF8F0] transition-all">
                                                     Xem chi tiết <ChevronRight size={18} className="ml-1" />
                                                 </Button>
                                             </Link>

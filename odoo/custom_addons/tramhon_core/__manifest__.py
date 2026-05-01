@@ -21,10 +21,5 @@
     'data': [
         # 'security/ir.model.access.csv',
         'views/res_partner_views.xml',
-        'views/templates.xml',
-    ],
-    # only loaded in demonstration mode
-    'demo': [
-        'demo/demo.xml',
     ],
 }

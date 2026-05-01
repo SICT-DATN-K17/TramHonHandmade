@@ -39,7 +39,7 @@ const statusConfig: Record<string, { label: string; bg: string; text: string; bo
     PENDING_PICKUP: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
     PACKAGING: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
     SHIPPING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    DELIVERED: { label: 'Đã nhận hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
+    DELIVERED: { label: 'Đã giao hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
     COMPLETED: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
     CANCELLED: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
     REFUNDED: { label: 'Đã hoàn tiền', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: XCircle },

@@ -12,7 +12,7 @@ class ResPartner(models.Model):
     x_role = fields.Selection([
         ('CUSTOMER', 'Khách hàng'),
         ('ARTISAN', 'Nghệ nhân')
-    ], string='Vai trò (Django)', default='CUSTOMER', index=True)
+    ], string='Vai trò', default='CUSTOMER', index=True)
     x_bio = fields.Text(string='Giới thiệu/Tiểu sử')
 
     def write(self, vals):

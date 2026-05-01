@@ -44,11 +44,15 @@ export interface RawOrderItem {
 
 export interface RawOrderResponse {
     id: number;
+    orderNumber?: string;
     status: string;
-    orderDate: string;
-    totalPrice: number;
-    isCustomOrder: boolean;
-    note: string | null;
+    orderDate?: string;
+    createdAt?: string;
+    totalPrice?: number;
+    total?: number;
+    isCustomOrder?: boolean;
+    note?: string | null;
+    shippingAddress?: string;
     items: RawOrderItem[];
 }
 
@@ -67,7 +71,7 @@ export interface RawOrderDetail {
     id: number;
     chatId: number | null;
     orderDate: string;
-    status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+    status: string; 
     totalPrice: number;
     shippingFee: number;
     finalTotal: number;

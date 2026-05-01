@@ -12,14 +12,12 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
-import useMyOrders from '@/hooks/useMyOrders'; // Import hook
-import { RawOrderDetail } from '@/types/apiTypes';
+import useMyOrders from '@/hooks/useMyOrders'; 
+import { RawOrderDetail, RawOrderDetailItem } from '@/types/apiTypes';
 import type { StoredOrder } from '@/lib/ordersStorage';
 import toast, { Toaster } from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-const FREE_SHIP_THRESHOLD = 200000;
-const SHIPPING_FEE = 20000;
 
 const CANCEL_REASONS = [
     "Muốn thay đổi địa chỉ giao hàng",
@@ -45,11 +43,13 @@ const getProductImageUrl = (path: string | null | undefined): string => {
     return `${API_URL}${normalizedPath}`;
 };
 
-const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
+const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: React.ElementType }> = {
     pending_pickup: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
     packaging: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
     shipping: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    delivered: { label: 'Đã nhận hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
+    // MÁNH KHÓE UI: Ẩn DELIVERED_AWAITING thành Đang giao hàng
+    delivered_awaiting: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    delivered: { label: 'Đã giao hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
     completed: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
     cancelled: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
     refunded: { label: 'Đã hoàn tiền', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: XCircle },
@@ -61,7 +61,9 @@ const paymentLabels: Record<string, string> = {
     credit_card: 'Thẻ tín dụng / Ghi nợ',
 };
 
-type OrderWithArtisan = StoredOrder & { 
+// Loại bỏ lỗi Type Status cũ của StoredOrder
+type OrderWithArtisan = Omit<StoredOrder, 'status'> & { 
+    status: string;
     artisanId?: number; 
     artisanName?: string;
 };
@@ -70,18 +72,19 @@ export default function CustomerOrderDetailPage() {
     const params = useParams();
     const router = useRouter();
     const axiosAuth = useAxiosAuth();
-    const { cancelOrder } = useMyOrders(); // Gọi hàm Hủy từ Hook
+    const { cancelOrder, refetch } = useMyOrders();
     
     const orderId = Number(params.id);
     const [order, setOrder] = useState<OrderWithArtisan | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // --- STATES CHO MODAL HỦY ĐƠN ---
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [selectedReason, setSelectedReason] = useState<string>("");
     const [customReason, setCustomReason] = useState<string>("");
     const [isCancelling, setIsCancelling] = useState(false);
+    
+    const [isConfirming, setIsConfirming] = useState(false);
 
     useEffect(() => {
         if (!orderId || isNaN(orderId)) {
@@ -92,7 +95,7 @@ export default function CustomerOrderDetailPage() {
 
         const fetchOrder = async () => {
             try {
-                const response = await axiosAuth.get<RawOrderDetail & { artisanId?: number, artisanName?: string }>(`/orders/${orderId}`);
+                const response = await axiosAuth.get<RawOrderDetail>(`/orders/${orderId}`);
                 const orderData = response.data;
 
                 const mapBackendStatus = (s: string) => {
@@ -100,6 +103,7 @@ export default function CustomerOrderDetailPage() {
                         case 'PENDING_PICKUP': return 'pending_pickup';
                         case 'PACKAGING': return 'packaging';
                         case 'SHIPPING': return 'shipping';
+                        case 'DELIVERED_AWAITING': return 'delivered_awaiting';
                         case 'DELIVERED': return 'delivered';
                         case 'COMPLETED': return 'completed';
                         case 'CANCELLED': return 'cancelled';
@@ -117,7 +121,6 @@ export default function CustomerOrderDetailPage() {
                     }
                 };
 
-                // Đã xóa phần tính phí ship như ông yêu cầu ở đoạn hội thoại trước
                 const subtotal = Number(orderData.totalPrice || 0);
 
                 const mappedOrder: OrderWithArtisan = {
@@ -140,7 +143,7 @@ export default function CustomerOrderDetailPage() {
                         address: orderData.shippingAddress,
                         note: orderData.note || undefined,
                     },
-                    items: orderData.items.map((item: any) => ({
+                    items: orderData.items.map((item: RawOrderDetailItem) => ({
                         productId: item.productId,
                         productName: item.productName,
                         quantity: Number(item.quantity || 0),
@@ -161,12 +164,28 @@ export default function CustomerOrderDetailPage() {
         fetchOrder();
     }, [orderId, axiosAuth]);
 
-    // --- LOGIC XỬ LÝ HỦY ĐƠN ---
     const closeCancelModal = () => {
         if (!isCancelling) {
             setIsCancelModalOpen(false);
             setSelectedReason("");
             setCustomReason("");
+        }
+    };
+
+    // Hàm gọi API xác nhận nhận hàng
+    const confirmDelivery = async () => {
+        const toastId = toast.loading('Đang cập nhật trạng thái...');
+        setIsConfirming(true);
+        try {
+            await axiosAuth.put(`/orders/${orderId}/confirm-delivery/`);
+            toast.success(<b>Đã xác nhận nhận hàng! Cảm ơn bạn.</b>, { id: toastId });
+            
+            setOrder(prev => prev ? { ...prev, status: 'delivered' } : null);
+            if (refetch) refetch(); // Làm mới danh sách đơn ngầm
+        } catch (err: any) {
+            toast.error(<b>{err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận.'}</b>, { id: toastId });
+        } finally {
+            setIsConfirming(false);
         }
     };
 
@@ -191,7 +210,6 @@ export default function CustomerOrderDetailPage() {
             await cancelOrder(orderId, cancelNoteText);
             toast.success(<b>Đã hủy đơn hàng #{orderId} thành công!</b>, { id: toastId });
             
-            // Cập nhật lại UI nội bộ mà không cần fetch lại toàn bộ
             setOrder(prev => prev ? { ...prev, status: 'cancelled', shippingAddress: { ...prev.shippingAddress, note: (prev.shippingAddress.note ? prev.shippingAddress.note + " | " : "") + cancelNoteText } } : null);
             
             closeCancelModal();
@@ -233,7 +251,7 @@ export default function CustomerOrderDetailPage() {
         );
     }
 
-    const StatusIcon = statusConfig[order.status].icon;
+    const StatusIcon = statusConfig[order.status]?.icon || Package;
     const isCancelled = order.status === 'cancelled';
     
     const rawNote = order.shippingAddress.note || "";
@@ -242,9 +260,8 @@ export default function CustomerOrderDetailPage() {
     const normalNoteText = hasCancelReason ? "" : rawNote;
 
     const displayArtisanName = order.artisanName || 'Gian Hàng Chế Tác';
-
-    // Chỉ cho phép hủy nếu trạng thái chưa đến mức "DELIVERED" hay "COMPLETED"
     const canCancel = !['delivered', 'completed', 'cancelled', 'refunded'].includes(order.status);
+    const canConfirmDelivery = ['shipping', 'delivered_awaiting'].includes(order.status);
 
     return (
         <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7] flex flex-col">
@@ -259,7 +276,7 @@ export default function CustomerOrderDetailPage() {
                     <ChevronLeft size={18} /> Quay lại danh sách
                 </button>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-2xl font-black text-[#3F2E23] flex items-center gap-2">
                             Đơn hàng {order.orderNumber}
@@ -268,13 +285,27 @@ export default function CustomerOrderDetailPage() {
                             <Calendar size={14} /> {formatDate(order.createdAt)}
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {!isCancelled && (
+                    
+                    <div className="flex flex-wrap items-center gap-3">
+                        {!isCancelled && statusConfig[order.status] && (
                             <div className={`px-3 py-1.5 rounded-full border ${statusConfig[order.status].bg} ${statusConfig[order.status].border} ${statusConfig[order.status].text} text-sm font-bold flex items-center gap-1.5 shadow-sm w-max`}>
                                 <StatusIcon size={16} /> {statusConfig[order.status].label}
                             </div>
                         )}
-                        {/* NÚT HỦY ĐƠN */}
+                        {canConfirmDelivery && (
+                            <Button 
+                                onClick={confirmDelivery}
+                                disabled={isConfirming}
+                                className="text-white font-bold h-9 px-4 rounded-xl shadow-md transition-all hover:-translate-y-0.5" 
+                                style={{ backgroundColor: '#10B981' }} 
+                            >
+                                {isConfirming ? (
+                                    <Loader2 className="animate-spin h-4 w-4" />
+                                ) : (
+                                    <><CheckCircle2 size={16} className="mr-1.5" /> Đã nhận được hàng</>
+                                )}
+                            </Button>
+                        )}
                         {canCancel && (
                             <Button
                                 variant="outline"
@@ -397,7 +428,7 @@ export default function CustomerOrderDetailPage() {
                                     </h3>
                                 </div>
                                 <div className="p-5">
-                                    <p className="font-medium text-[#D96C39] italic text-sm">"{normalNoteText}"</p>
+                                    <p className="font-medium text-[#D96C39] italic text-sm">&quot;{normalNoteText}&quot;</p>
                                 </div>
                             </div>
                         )}

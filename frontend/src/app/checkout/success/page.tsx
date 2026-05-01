@@ -142,18 +142,6 @@ function CheckoutSuccessContent() {
         }
     };
 
-    const getStatusName = (status: string) => {
-        switch (status) {
-            case 'pending': return 'Đang chờ xác nhận';
-            case 'confirmed': return 'Đã xác nhận';
-            case 'processing': return 'Đang chế tác / Chuẩn bị';
-            case 'shipped': return 'Đang giao hàng';
-            case 'delivered': return 'Đã nhận hàng';
-            case 'cancelled': return 'Đã hủy';
-            default: return status;
-        }
-    };
-
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         toast.success("Đã copy vào khay nhớ tạm!");

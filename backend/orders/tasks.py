@@ -75,7 +75,6 @@ def sync_order_to_odoo_task(self, order_id):
                 template_id = template_records[0] if template_records else False
 
                 if template_id:
-                    # B. Mở Wizard Gửi Email
                     compose_wizard_id = odoo.execute('mail.compose.message', 'create', {
                         'model': 'sale.order',
                         'res_id': so_id,
@@ -83,7 +82,6 @@ def sync_order_to_odoo_task(self, order_id):
                         'composition_mode': 'comment',
                     })
 
-                    # C. Bấm nút "GỬI"
                     odoo.execute('mail.compose.message', 'action_send_mail', [compose_wizard_id])
                     logger.info(f"Đã TỰ ĐỘNG GỬI EMAIL Xác nhận cho SO {so_id} (Template ID: {template_id}).")
                 else:
@@ -107,7 +105,6 @@ def cancel_order_in_odoo_task(self, order_id):
         Order = apps.get_model('orders', 'Order')
         order = Order.objects.get(id=order_id)
 
-        # 1. TÌM SALE ORDER BÊN ODOO
         so_search = odoo.execute('sale.order', 'search', [('x_django_id', '=', order.id)])
         if not so_search:
             logger.warning(f"Không tìm thấy Sale Order cho Django Order {order.id} để hủy.")
@@ -123,9 +120,6 @@ def cancel_order_in_odoo_task(self, order_id):
         if so_data['state'] == 'cancel':
             return f"SO {so_id} đã được hủy từ trước."
 
-        # =========================================================
-        # 2. XỬ LÝ TRẢ HÀNG (RETURN PICKING) NẾU ĐÃ XUẤT KHO
-        # =========================================================
         if so_data.get('picking_ids'):
             pickings = odoo.execute('stock.picking', 'read', so_data['picking_ids'], ['state'])
             for picking in pickings:
@@ -149,59 +143,46 @@ def cancel_order_in_odoo_task(self, order_id):
                             logger.info(f"Bỏ qua Picking {picking['id']} vì không có số lượng thực xuất.")
                             continue
 
-                        # A. Tạo Wizard Trả hàng
                         return_wizard_id = odoo.execute('stock.return.picking', 'create', {
                             'picking_id': picking['id'],
                             'product_return_moves': return_moves
                         })
                         
-                        # B. Thực thi tạo Phiếu Trả Hàng mới VÀ lấy luôn ID của phiếu vừa tạo
                         return_res = odoo.execute('stock.return.picking', 'create_returns', [return_wizard_id])
                         new_picking_id = return_res.get('res_id')
                         
                         if new_picking_id:
                             logger.info(f"Đã tạo Phiếu Trả Hàng ID {new_picking_id}. Đang tiến hành tự động Xác nhận...")
                             
-                            # C. Bắt Odoo chuẩn bị hàng
                             odoo.execute('stock.picking', 'action_assign', [new_picking_id])
                             
-                            # D. Điền số lượng "Đã hoàn thành" (quantity_done) cho từng sản phẩm
-                            # (Bước này để tránh Odoo hiện popup hỏi "Bạn có muốn tạo phần đọng lại không?")
                             new_moves = odoo.execute('stock.move', 'search', [('picking_id', '=', new_picking_id)])
                             for move_id in new_moves:
                                 move_data = odoo.execute('stock.move', 'read', [move_id], ['product_uom_qty'])[0]
                                 odoo.execute('stock.move', 'write', [move_id], {'quantity_done': move_data['product_uom_qty']})
                                 
-                            # E. BẤM NÚT XÁC NHẬN (VALIDATE) ĐỂ CỘNG LẠI TỒN KHO!
                             odoo.execute('stock.picking', 'button_validate', [new_picking_id])
                             logger.info(f"✅ Đã HOÀN TỒN KHO thành công cho Phiếu Trả Hàng {new_picking_id}")
                             
                     except Exception as e:
                         logger.error(f"Lỗi khi xử lý trả hàng cho Picking {picking['id']}: {e}")
-        # =========================================================
-        # 3. HỦY SALE ORDER VÀ GỬI EMAIL TỰ ĐỘNG
-        # =========================================================
         try:
-            # A. Tìm ID của Mẫu Email (Template) Hủy đơn mặc định của Odoo
             template_records = odoo.execute('ir.model.data', 'search_read', 
                 [('module', '=', 'sale'), ('name', '=', 'mail_template_sale_cancellation')], 
                 ['res_id']
             )
             template_id = template_records[0]['res_id'] if template_records else False
 
-            # B. Khởi tạo Wizard kèm theo Template ID
             wizard_vals = {'order_id': so_id}
             if template_id:
                 wizard_vals['template_id'] = template_id
 
             cancel_wizard_id = odoo.execute('sale.order.cancel', 'create', wizard_vals)
             
-            # C. BẤM NÚT "GỬI VÀ HỦY"
             odoo.execute('sale.order.cancel', 'action_send_mail_and_cancel', [cancel_wizard_id])
             logger.info(f"Đã HỦY SO {so_id} và TỰ ĐỘNG GỬI EMAIL cho khách (Template ID: {template_id}).")
             
         except Exception as e:
-            # Fallback an toàn phòng khi lỗi
             logger.warning(f"Không thể dùng wizard gửi mail, fallback về lệnh cancel gốc: {e}")
             odoo.execute('sale.order', 'action_cancel', [so_id])
             logger.info(f"Đã hủy SO {so_id} bằng action_cancel tiêu chuẩn.")
@@ -210,4 +191,19 @@ def cancel_order_in_odoo_task(self, order_id):
 
     except Exception as exc:
         logger.error(f"Lỗi khi cancel Order ID {order_id} trên Odoo: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+@shared_task(bind=True, max_retries=3)
+def update_order_status_in_odoo_task(self, order_id, new_status):
+    try:
+        Order = apps.get_model('orders', 'Order')
+        order = Order.objects.get(id=order_id)
+        
+        so_search = odoo.execute('sale.order', 'search', [('x_django_id', '=', order.id)])
+        if so_search:
+            so_id = so_search[0]
+            odoo.execute('sale.order', 'write', [so_id], {'x_web_status': new_status})
+            logger.info(f"Đã cập nhật trạng thái {new_status} cho SO {so_id} do KHÁCH HÀNG BẤM TRÊN WEB.")
+    except Exception as exc:
+        logger.error(f"Lỗi đẩy trạng thái xác nhận sang Odoo: {exc}")
         raise self.retry(exc=exc, countdown=60)

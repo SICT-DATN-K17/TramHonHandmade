@@ -18,7 +18,7 @@ from .serializers import (
 )
 from .permissions import IsOwnerOrArtisan
 from .services import create_order_from_request, refund_stock_redis
-from .tasks import sync_order_to_odoo_task, cancel_order_in_odoo_task
+from .tasks import *
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class OrderViewSet(ModelViewSet):
         if self.action in ['create', 'create_legacy', 'my_orders', 'list', 'artisan_all']:
             return [permissions.IsAuthenticated()]
         
-        if self.action in ['retrieve', 'cancel', 'update_status', 'update', 'partial_update']:
+        if self.action in ['retrieve', 'cancel', 'update_status', 'update', 'partial_update', 'confirm_delivery']:
             return [permissions.IsAuthenticated(), IsOwnerOrArtisan()]
         
         return [permissions.IsAdminUser()]
@@ -128,6 +128,20 @@ class OrderViewSet(ModelViewSet):
         cancel_order_in_odoo_task.delay(order.id)
 
         return Response({"message": f"Đã hủy đơn hàng thành công. Trạng thái: {order.status}"}, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['put'], url_path='confirm-delivery')
+    def confirm_delivery(self, request, pk=None):
+        order = self.get_object()
+        
+        if order.status not in ['SHIPPING', 'DELIVERED_AWAITING']:
+            return Response({"message": "Đơn hàng chưa thể xác nhận nhận hàng lúc này!"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        order.status = 'DELIVERED'
+        order.save(update_fields=['status'])
+        
+        update_order_status_in_odoo_task.delay(order.id, 'DELIVERED')
+        
+        return Response({"message": "Cảm ơn bạn đã xác nhận nhận hàng!"}, status=status.HTTP_200_OK)
 
 class OdooWebhookOrderView(APIView):
     permission_classes = [] # RẤT QUAN TRỌNG: Mở toang cửa không bắt Auth để Odoo có thể gọi vào

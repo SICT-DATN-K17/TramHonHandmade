@@ -1,0 +1,14 @@
+<odoo>
+    <data>
+        <record id="ir_cron_auto_confirm_delivery" model="ir.cron">
+            <field name="name">Tự động chốt đơn Đã giao hàng sau 2 ngày</field>
+            <field name="model_id" ref="sale.model_sale_order"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_auto_confirm_delivery()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

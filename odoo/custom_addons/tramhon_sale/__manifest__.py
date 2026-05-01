@@ -15,17 +15,13 @@
     'version': '0.1',
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'sale_management', 'tramhon_product', 'sale'],
+    'depends': ['base', 'sale_management', 'tramhon_product', 'sale', 'account'],
 
     # always loaded
     'data': [
         # 'security/ir.model.access.csv',
         'views/sale_custom_views.xml',
         'views/sale_order_views.xml',
-        'views/templates.xml',
-    ],
-    # only loaded in demonstration mode
-    'demo': [
-        'demo/demo.xml',
+        'data/cron_auto_confirm_so.xml',
     ],
 }

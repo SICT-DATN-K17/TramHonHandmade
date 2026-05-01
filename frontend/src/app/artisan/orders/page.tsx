@@ -37,7 +37,7 @@ const statusConfig: Record<string, { label: string; badgeClass: string }> = {
     PENDING_PICKUP: { label: 'Đang chờ lấy hàng', badgeClass: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
     PACKAGING: { label: 'Đang đóng gói hàng', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
     SHIPPING: { label: 'Đang giao hàng', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
-    DELIVERED: { label: 'Đã nhận hàng', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    DELIVERED: { label: 'Đã giao hàng', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     COMPLETED: { label: 'Hoàn thành', badgeClass: 'bg-green-50 text-green-700 border-green-200' },
     CANCELLED: { label: 'Đã hủy', badgeClass: 'bg-red-50 text-red-700 border-red-200' },
     REFUNDED: { label: 'Đã hoàn tiền', badgeClass: 'bg-gray-50 text-gray-700 border-gray-200' },
