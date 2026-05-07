@@ -33,7 +33,8 @@ class Command(BaseCommand):
                     'x_artisan_id': odoo_artisan_id,
                     'x_django_id': prod.id,
                     'x_image_url': prod.image or '',
-                    'active': True if prod.status == 'ACTIVE' else False,
+                    'active': True,
+                    'x_web_status': 'ACTIVE' if prod.status == 'ACTIVE' else 'HIDDEN',
                     'detailed_type': 'product', 
                 }
 

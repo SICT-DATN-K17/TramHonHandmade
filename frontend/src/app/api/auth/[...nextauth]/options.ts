@@ -5,7 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import axios from "axios"; // Import trực tiếp axios, không dùng instance chung
 
 // Ưu tiên đường dẫn nội bộ khi chạy trong Docker
-const INTERNAL_API_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://127.0.0.1:8000/api";
+const INTERNAL_API_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:8000/api";
 
 export const authOptions: NextAuthOptions = {
     providers: [

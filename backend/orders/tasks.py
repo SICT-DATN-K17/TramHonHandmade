@@ -70,7 +70,7 @@ def sync_order_to_odoo_task(self, order_id):
 
             try:
                 template_records = odoo.execute('mail.template', 'search', [
-                    ('id', '=', 22)
+                    ('id', '=', 12)
                 ])
                 template_id = template_records[0] if template_records else False
 

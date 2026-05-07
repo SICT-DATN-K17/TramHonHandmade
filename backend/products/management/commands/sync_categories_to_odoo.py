@@ -14,12 +14,14 @@ class Command(BaseCommand):
 
         for cat in categories:
             try:
-                existing_odoo_cat = odoo.execute('product.category', 'search', [('name', '=', cat.name)])
+                # Thay dòng cũ bằng dòng này:
+                existing_odoo_cat = odoo.execute('product.category', 'search', [('x_django_id', '=', cat.id)])
 
                 payload = {
                     'name': cat.name,
                     'x_django_id': cat.id,
                     'x_slug': cat.slug,
+                    'x_web_status': 'ACTIVE' if cat.status == 'ACTIVE' else 'HIDDEN',
                 }
 
                 if existing_odoo_cat:

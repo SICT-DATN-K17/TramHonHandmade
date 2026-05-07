@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#j^22q^mxe@sr#tgdq%fx+8pex8(8@)a(#wi%16#t-_by2+^xf'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
@@ -34,6 +34,7 @@ ALLOWED_HOSTS = [
     'localhost', 
     '127.0.0.1',
     'host.docker.internal',
+    'backend'
 ]
 
 # Application definition
@@ -97,7 +98,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379/1')],
+            "hosts": [os.environ.get('REDIS_URL', 'redis://host.docker.internal:6379/1')],
         },
     },
 }
@@ -108,11 +109,11 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'handmade',
-        'USER': 'root',
-        'PASSWORD': '123456',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'NAME': os.environ.get('DB_NAME', 'handmade'),
+        'USER': os.environ.get('DB_USER', 'root'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', '123456'),
+        'HOST': os.environ.get('DB_HOST', 'host.docker.internal'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
         'OPTIONS': {
             'charset': 'utf8mb4',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
@@ -296,8 +297,8 @@ ODOO_DB = os.getenv('ODOO_DB')
 ODOO_USER = os.getenv('ODOO_USER')
 ODOO_PASSWORD = os.getenv('ODOO_PASSWORD')
 
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0')
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://host.docker.internal:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://host.docker.internal:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -306,6 +307,6 @@ CELERY_TIMEZONE = TIME_ZONE
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://127.0.0.1:6379/2'),
+        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://host.docker.internal:6379/2'),
     }
 }

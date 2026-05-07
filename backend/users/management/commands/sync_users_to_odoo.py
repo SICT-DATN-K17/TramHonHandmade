@@ -1,41 +1,61 @@
 from django.core.management.base import BaseCommand
-from users.models import CustomUser  # Nhớ check lại tên model của ông
+from django.contrib.auth import get_user_model
+from users.models import Address
 from services.odoo_client import odoo
+import logging
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Đồng bộ toàn bộ User (Khách hàng & Nghệ nhân) từ Django sang Odoo'
+    help = 'Đồng bộ toàn bộ Khách hàng và Nghệ nhân sang Odoo ERP'
 
     def handle(self, *args, **kwargs):
-        self.stdout.write(self.style.WARNING('Bắt đầu đồng bộ Users sang Odoo...'))
+        self.stdout.write(self.style.WARNING('--- Bắt đầu đồng bộ Users sang Odoo ---'))
 
-        users = CustomUser.objects.filter(is_active=True, role__in=['CUSTOMER', 'ARTISAN'])
-        success_count = 0
-        fail_count = 0
+        # Lấy tất cả user là khách hàng hoặc nghệ nhân đã kích hoạt
+        users = User.objects.filter(is_active=True, role__in=['CUSTOMER', 'ARTISAN'])
+        total = users.count()
+        success = 0
+        error = 0
 
-        for user in users:
+        for index, user in enumerate(users, 1):
             try:
-                existing_odoo_id = odoo.execute('res.partner', 'search', [('x_django_id', '=', user.id)])
-
+                # 1. Chuẩn bị dữ liệu cơ bản
                 payload = {
-                    'name': user.name if user.name else user.username, 
+                    'name': user.name,
                     'email': user.email,
                     'x_django_id': user.id,
-                    'x_role': user.role,  
-                    'x_bio': user.bio if hasattr(user, 'bio') and user.bio else '',
+                    'x_role': user.role,
+                    'x_bio': user.bio if user.bio else False,
+                    'active': True,
                 }
 
-                if existing_odoo_id:
-                    odoo.execute('res.partner', 'write', existing_odoo_id, payload)
-                    self.stdout.write(f"Đã UPDATE: {payload['name']} (Odoo ID: {existing_odoo_id[0]})")
+                # 2. Lấy thông tin địa chỉ/SĐT nếu có
+                try:
+                    addr = Address.objects.get(user=user)
+                    payload['phone'] = addr.phone_number
+                    payload['street'] = addr.detail_address
+                except Address.DoesNotExist:
+                    pass
+
+                # 3. Kiểm tra xem đã tồn tại trên Odoo chưa
+                existing_partner = odoo.execute('res.partner', 'search', [('x_django_id', '=', user.id)])
+
+                if existing_partner:
+                    # Cập nhật
+                    odoo.execute('res.partner', 'write', existing_partner, payload)
+                    status_msg = f"[{index}/{total}] Cập nhật: {user.email}"
                 else:
+                    # Tạo mới
                     new_id = odoo.execute('res.partner', 'create', payload)
-                    self.stdout.write(self.style.SUCCESS(f"Đã TẠO MỚI: {payload['name']} (Odoo ID: {new_id})"))
-                
-                success_count += 1
+                    status_msg = f"[{index}/{total}] Tạo mới: {user.email} (ID: {new_id})"
+
+                self.stdout.write(self.style.SUCCESS(status_msg))
+                success += 1
 
             except Exception as e:
-                fail_count += 1
-                self.stdout.write(self.style.ERROR(f"LỖI user {user.username}: {e}"))
+                self.stdout.write(self.style.ERROR(f"[{index}/{total}] Lỗi user {user.email}: {str(e)}"))
+                error += 1
 
-        self.stdout.write(self.style.SUCCESS(f'\n--- HOÀN TẤT ---'))
-        self.stdout.write(f'Thành công: {success_count} | Thất bại: {fail_count}')
+        self.stdout.write(self.style.SUCCESS(f'\n--- Hoàn thành: Thành công {success}, Lỗi {error} ---'))
