@@ -18,7 +18,7 @@ const statusConfig: Record<string, { label: string; className: string; icon: str
     PENDING_PICKUP: { label: "Đang chờ lấy hàng", className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "⏳" },
     PACKAGING: { label: "Đang đóng gói hàng", className: "bg-blue-50 text-blue-700 border-blue-200", icon: "📦" },
     SHIPPING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
-    DELIVERED_AWAITING: { label: "Đang giao hàng", className: "bg-purple-50 text-purple-700 border-purple-200", icon: "🚚" },
+    DELIVERED_AWAITING: { label: "Đã giao, chờ bạn xác nhận", className: "bg-orange-50 text-orange-700 border-orange-200", icon: "📬" },
     DELIVERED: { label: "Đã giao hàng", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "📬" },
     COMPLETED: { label: "Hoàn thành", className: "bg-green-50 text-green-700 border-green-200", icon: "✅" },
     CANCELLED: { label: "Đã hủy", className: "bg-red-50 text-red-700 border-red-200", icon: "❌" },
@@ -62,16 +62,21 @@ export default function MyOrdersPage() {
         }
     };
 
-    // Logic lọc danh sách đơn hàng[cite: 19]
     const filteredOrders = useMemo(() => {
         if (filterStatus === 'ALL') return orders;
+
+        if (filterStatus === 'SHIPPING') {
+            return orders.filter((order: any) =>
+                ['SHIPPING', 'DELIVERED_AWAITING'].includes((order.status || '').toUpperCase())
+            );
+        }
+
         return orders.filter((order: any) => (order.status || '').toUpperCase() === filterStatus);
     }, [orders, filterStatus]);
 
     const renderStatusBadge = (status: string) => {
         const upperStatus = status?.toUpperCase() || '';
         const config = statusConfig[upperStatus] || { label: status, className: "bg-gray-100 text-gray-800", icon: "📦" };
-
         return (
             <span className={`px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${config.className}`}>
                 <span>{config.icon}</span>{config.label}
@@ -118,33 +123,47 @@ export default function MyOrdersPage() {
                     </div>
                 ) : (
                     <div className="space-y-8 max-w-5xl mx-auto">
-                        {/* THANH BỘ LỌC TRẠNG THÁI */}
                         <div className="flex flex-wrap items-center justify-center gap-3 bg-white p-4 rounded-3xl border border-[#E8D5B5] shadow-sm">
                             <button
                                 onClick={() => setFilterStatus('ALL')}
                                 className={`px-5 py-2 rounded-full text-sm font-bold transition-all border ${filterStatus === 'ALL'
-                                        ? 'bg-[#3F2E23] text-white shadow-md border-[#3F2E23]'
-                                        : 'text-[#6B4F3E] border-transparent hover:bg-[#FFF8F0]'
+                                    ? 'bg-[#3F2E23] text-white shadow-md border-[#3F2E23]'
+                                    : 'text-[#6B4F3E] border-transparent hover:bg-[#FFF8F0]'
                                     }`}
                             >
                                 Tất cả ({orders.length})
                             </button>
-                            {Object.entries(statusConfig).map(([key, config]) => {
-                                const count = orders.filter((o: any) => (o.status || '').toUpperCase() === key).length;
-                                if (count === 0 && filterStatus !== key) return null;
+                            {[
+                                { id: "PENDING_PICKUP", label: "Đang chờ lấy hàng", icon: "⏳", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+                                { id: "PACKAGING", label: "Đang đóng gói hàng", icon: "📦", className: "bg-blue-50 text-blue-700 border-blue-200" },
+                                { id: "SHIPPING", label: "Đang giao hàng", icon: "🚚", className: "bg-purple-50 text-purple-700 border-purple-200" },
+                                { id: "DELIVERED", label: "Đã giao hàng", icon: "📬", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                                { id: "COMPLETED", label: "Hoàn thành", icon: "✅", className: "bg-green-50 text-green-700 border-green-200" },
+                                { id: "CANCELLED", label: "Đã hủy", icon: "❌", className: "bg-red-50 text-red-700 border-red-200" },
+                                { id: "REFUNDED", label: "Đã hoàn tiền", icon: "💸", className: "bg-gray-50 text-gray-700 border-gray-200" },
+                            ].map((tab) => {
+                                let count = 0;
+                                if (tab.id === 'SHIPPING') {
+                                    // Tab Đang giao hàng: Đếm gộp số lượng của SHIPPING và DELIVERED_AWAITING
+                                    count = orders.filter((o: any) => ['SHIPPING', 'DELIVERED_AWAITING'].includes((o.status || '').toUpperCase())).length;
+                                } else {
+                                    count = orders.filter((o: any) => (o.status || '').toUpperCase() === tab.id).length;
+                                }
 
-                                const isActive = filterStatus === key;
+                                // Ẩn tab nếu không có đơn hàng nào
+                                if (count === 0 && filterStatus !== tab.id) return null;
+
+                                const isActive = filterStatus === tab.id;
                                 return (
                                     <button
-                                        key={key}
-                                        onClick={() => setFilterStatus(key)}
-                                        // Sử dụng config.className để lấy đúng màu nền và chữ của trạng thái đó[cite: 19]
+                                        key={tab.id}
+                                        onClick={() => setFilterStatus(tab.id)}
                                         className={`px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 border ${isActive
-                                                ? `${config.className} shadow-md border-current scale-105`
-                                                : 'text-[#6B4F3E] border-transparent hover:bg-[#FFF8F0] hover:border-[#E8D5B5]'
+                                            ? `${tab.className} shadow-md border-current scale-105`
+                                            : 'text-[#6B4F3E] border-transparent hover:bg-[#FFF8F0] hover:border-[#E8D5B5]'
                                             }`}
                                     >
-                                        <span>{config.icon}</span> {config.label} ({count})
+                                        <span>{tab.icon}</span> {tab.label} ({count})
                                     </button>
                                 );
                             })}
@@ -186,7 +205,6 @@ export default function MyOrdersPage() {
                                                 <div className="flex items-center gap-3">{renderStatusBadge(order.status || '')}</div>
                                             </div>
 
-                                            {/* Lý do hủy nếu có[cite: 19] */}
                                             {isCancelled && hasCancelReason && (
                                                 <div className="px-6 pt-5">
                                                     <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start shadow-sm">

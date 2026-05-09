@@ -106,7 +106,7 @@ export default function ArtisanLayout({ children }: { children: React.ReactNode 
         </NavLink>
         <NavLink href="/artisan/chat" isCollapsed={isCollapsed}>
           <MessageSquare className="h-5 w-5" />
-          {!isCollapsed && 'Tin nhắn'}
+          {!isCollapsed && 'Yêu cầu làm riêng'}
         </NavLink>
       </nav>
   );

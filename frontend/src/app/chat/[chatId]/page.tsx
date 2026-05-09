@@ -18,7 +18,7 @@ import { isProductOutOfStock } from "@/lib/inventory";
 import { useCart } from '@/contexts/CartContext';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 
-const API_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 const normalizeChatImageUrl = (raw: string): string => {
     let s = raw.trim();
@@ -274,23 +274,20 @@ export default function ChatPage() {
 
             <main className="flex-1 flex flex-col container mx-auto px-4 py-6 max-w-4xl h-[calc(100vh-140px)]">
 
-                {/* -------------------- HEADER CHAT -------------------- */}
-                <div className="bg-white rounded-2xl border border-[#E8D5B5] p-5 shadow-sm mb-6 flex-shrink-0">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-
-                        {/* Info Left */}
+                {/* -------------------- 1. THANH ĐIỀU HƯỚNG (STICKY) -------------------- */}
+                {/* Tui thêm pt-2 để nó không dính sát mép trên và pb-6 để đẩy khối dưới xuống xa hơn */}
+                <div className="sticky top-0 z-20 bg-[#FDFBF7] pt-2 pb-6 flex-shrink-0">
+                    <div className="bg-white rounded-2xl border border-[#E8D5B5] p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        {/* Nút quay lại và Thông tin nghệ nhân */}
                         <div className="flex items-start gap-4">
                             <Link href={`/custom-request/`} className="text-[#6B4F3E] hover:text-[#D96C39] transition-colors mt-2 p-1.5 bg-[#FFF8F0] rounded-full hover:bg-[#F7F1E8]">
                                 <ArrowLeft size={20} />
                             </Link>
 
                             <div className="flex gap-4">
-                                {/* Avatar */}
                                 <div className="w-14 h-14 rounded-full bg-[#FFF8F0] border-2 border-[#D96C39] shadow-sm flex items-center justify-center text-xl font-bold text-[#D96C39] flex-shrink-0">
                                     {artisan?.name?.charAt(0).toUpperCase() || 'A'}
                                 </div>
-
-                                {/* Text Info */}
                                 <div className="flex flex-col justify-center">
                                     <h1 className="text-xl font-bold text-[#3F2E23] flex items-center gap-2 mb-1">
                                         {artisan?.name || 'Nghệ nhân'}
@@ -307,7 +304,7 @@ export default function ChatPage() {
                             </div>
                         </div>
 
-                        {/* Action Right (Ghé thăm gian hàng) */}
+                        {/* Nút Xem gian hàng */}
                         <div className="flex items-center self-start md:self-center ml-12 md:ml-0">
                             {artisan?.id && (
                                 <Link href={`/shop/artisan/${artisan.id}`}>
@@ -319,9 +316,12 @@ export default function ChatPage() {
                             )}
                         </div>
                     </div>
+                </div>
 
-                    {/* Meta Detail Box */}
-                    <div className="mt-5 pt-4 border-t border-[#E8D5B5] flex flex-col md:flex-row gap-6">
+                {/* -------------------- 2. THÔNG TIN MÔ TẢ & NGÂN SÁCH (CỐ ĐỊNH) -------------------- */}
+                {/* Tui thêm mt-2 để tạo thêm một lớp khoảng cách nữa, tổng cộng sẽ rất thoáng */}
+                <div className="bg-white rounded-2xl border border-[#E8D5B5] p-5 shadow-sm mb-8 mt-2 flex-shrink-0">
+                    <div className="flex flex-col md:flex-row gap-6">
                         {hasReferenceImage && (
                             <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-[#E8D5B5] shadow-sm flex-shrink-0">
                                 <Image
@@ -345,7 +345,6 @@ export default function ChatPage() {
                         </div>
                     </div>
                 </div>
-                {/* -------------------- END HEADER CHAT -------------------- */}
 
                 {/* List Tin Nhắn */}
                 <div className="flex-1 overflow-y-auto space-y-5 mb-4 px-2 custom-scrollbar">

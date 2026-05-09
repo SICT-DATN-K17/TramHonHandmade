@@ -1,5 +1,6 @@
 import xmlrpc.client
 import logging
+import time
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -10,33 +11,44 @@ class OdooClient:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(OdooClient, cls).__new__(cls)
-            cls._instance._initialize()
+            cls._instance.url = settings.ODOO_URL
+            cls._instance.db = settings.ODOO_DB
+            cls._instance.username = settings.ODOO_USER
+            cls._instance.password = settings.ODOO_PASSWORD
+            cls._instance.uid = None
+            cls._instance.models = None
         return cls._instance
 
-    def _initialize(self):
-        self.url = settings.ODOO_URL
-        self.db = settings.ODOO_DB
-        self.username = settings.ODOO_USER
-        self.password = settings.ODOO_PASSWORD
-        self.uid = None
-        self.models = None
+    def connect(self, max_retries=10, delay=5):
+        if self.uid and self.models:
+            return True
 
-        try:
-            common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
-            self.uid = common.authenticate(self.db, self.username, self.password, {})
-            
-            if self.uid:
-                self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
-                logger.info(f"Kết nối Odoo thành công! UID: {self.uid}")
-            else:
-                logger.error("Sai thông tin đăng nhập Odoo (Email hoặc Mật khẩu).")
-        except Exception as e:
-            logger.error(f"Không thể kết nối tới server Odoo: {e}")
+        for attempt in range(1, max_retries + 1):
+            try:
+                common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
+                self.uid = common.authenticate(self.db, self.username, self.password, {})
+                
+                if self.uid:
+                    self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
+                    logger.info(f"Kết nối Odoo thành công! UID: {self.uid}")
+                    return True
+                else:
+                    logger.error("Sai thông tin đăng nhập Odoo (Email hoặc Mật khẩu). Vui lòng check file .env!")
+                    return False
+                    
+            except Exception as e:
+                logger.warning(f"Odoo chưa sẵn sàng (Lần thử {attempt}/{max_retries}). Đang đợi {delay}s để thử lại... Lỗi: {e}")
+                time.sleep(delay) # Nghỉ 5s rồi đập cửa tiếp
+                
+        logger.error("Đã hết thời gian chờ, không thể kết nối tới server Odoo!")
+        return False
 
     def execute(self, model_name, method_name, *args, **kwargs):
         if not self.uid or not self.models:
-            logger.error("Chưa kết nối được Odoo, không thể thực thi lệnh.")
-            return None
+            is_connected = self.connect()
+            if not is_connected:
+                logger.error(f"Hủy thực thi lệnh {model_name}.{method_name} do không có kết nối Odoo.")
+                return None
         
         try:
             return self.models.execute_kw(
@@ -44,7 +56,9 @@ class OdooClient:
                 model_name, method_name, args, kwargs
             )
         except Exception as e:
-            logger.error(f"Lỗi Odoo khi chạy {method_name} trên {model_name}: {e}")
+            logger.error(f"Lỗi khi thực thi lệnh trên Odoo ({model_name}.{method_name}): {e}")
+            self.uid = None 
+            self.models = None
             return None
 
 odoo = OdooClient()

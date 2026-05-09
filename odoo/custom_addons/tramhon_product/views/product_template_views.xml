@@ -1,23 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- FORM VIEW SẢN PHẨM -->
     <record id="product_template_only_form_view_inherit_tramhon" model="ir.ui.view">
         <field name="name">product.template.form.inherit.tramhon</field>
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_only_form_view"/>
         <field name="arch" type="xml">
 
-            <!-- 1. ĐẬP ĐI XÂY LẠI CỘT TRÁI (group_general) ĐỂ XÓA SẠCH TEXT RÁC -->
             <xpath expr="//group[@name='group_general']" position="replace">
                 <group name="group_general">
-                    <!-- Giữ lại các trường mặc định của Odoo nhưng cho tàng hình để tránh lỗi -->
                     <field name="active" invisible="1"/>
                     <field name="detailed_type" invisible="1"/>
                     <field name="invoice_policy" invisible="1"/>
                     <field name="uom_id" invisible="1"/>
                     <field name="uom_po_id" invisible="1"/>
 
-                    <!-- Đáp URL và Mô tả lên đây để dàn đều cân với cột phải -->
                     <field name="x_django_id" readonly="1"/>
                     <field name="x_artisan_id" options="{'no_create': True}"/>
                     <field name="x_image_url" widget="url"/>
@@ -25,7 +21,6 @@
                 </group>
             </xpath>
 
-            <!-- 2. CỘT PHẢI: ẨN CÁC TRƯỜNG THỪA -->
             <xpath expr="//field[@name='taxes_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
@@ -42,12 +37,10 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- 3. CỘT PHẢI: GẮN INFO TRẠM HỒN NGAY DƯỚI DANH MỤC -->
             <xpath expr="//field[@name='categ_id']" position="after">
                 <field name="description_sale" placeholder="Nhập mô tả chi tiết sản phẩm hiển thị trên web..."/>
             </xpath>
 
-            <!-- 4. CHỈ ẨN CÁC TAB THỪA, GIỮ LẠI TAB "THÔNG TIN CHUNG" NHƯ CŨ -->
             <xpath expr="//page[@name='sales']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
@@ -64,7 +57,6 @@
         </field>
     </record>
 
-    <!-- TREE VIEW -->
     <record id="product_template_tree_view_inherit_tramhon" model="ir.ui.view">
         <field name="name">product.template.tree.inherit.tramhon</field>
         <field name="model">product.template</field>
@@ -75,10 +67,54 @@
             </xpath>
         </field>
     </record>
+    <record id="product_normal_form_view_inherit_tramhon" model="ir.ui.view">
+        <field name="name">product.product.form.inherit.tramhon</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
 
-    <!-- ... (Các phần trên giữ nguyên) ... -->
+            <xpath expr="//group[@name='group_general']" position="replace">
+                <group name="group_general">
+                    <field name="active" invisible="1"/>
+                    <field name="detailed_type" invisible="1"/>
+                    <field name="invoice_policy" invisible="1"/>
+                    <field name="uom_id" invisible="1"/>
+                    <field name="uom_po_id" invisible="1"/>
 
-    <!-- ACTIONS & MENUS -->
+                    <field name="x_django_id" readonly="1"/>
+                    <field name="x_artisan_id" options="{'no_create': True}"/>
+                    <field name="x_image_url"/>
+                    <field name="x_description"/>
+                </group>
+            </xpath>
+
+            <xpath expr="//field[@name='standard_price']" position="attributes">
+                <attribute name="readonly">1</attribute>
+            </xpath>
+
+            <xpath expr="//field[@name='categ_id']" position="attributes">
+                <attribute name="options">{'no_create': True, 'no_open': True}</attribute>
+            </xpath>
+
+            <xpath expr="//field[@name='image_1920']" position="replace">
+                <field name="x_image_url" widget="image" class="oe_avatar" options="{'size': [90, 90]}"/>
+            </xpath>
+            
+        </field>
+    </record>
+
+    <record id="product_product_tree_view_inherit_tramhon" model="ir.ui.view">
+        <field name="name">product.product.tree.inherit.tramhon</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_product_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='categ_id']" position="after">
+                <field name="x_web_status" optional="show" decoration-success="x_web_status == 'ACTIVE'" decoration-danger="x_web_status == 'HIDDEN'"/>
+            </xpath>
+        </field>
+    </record>
+
+
     <record id="sale.product_template_action" model="ir.actions.act_window">
         <field name="view_mode">tree,kanban,form,activity</field>
     </record>

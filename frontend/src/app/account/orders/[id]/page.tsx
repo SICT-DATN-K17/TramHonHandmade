@@ -46,7 +46,7 @@ const statusConfig: Record<string, { label: string; bg: string; text: string; bo
     PENDING_PICKUP: { label: 'Đang chờ lấy hàng', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: Clock },
     PACKAGING: { label: 'Đang đóng gói hàng', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: Package },
     SHIPPING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
-    DELIVERED_AWAITING: { label: 'Đang giao hàng', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Truck },
+    DELIVERED_AWAITING: { label: 'Đã giao, chờ bạn xác nhận', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: CheckCircle2 },
     DELIVERED: { label: 'Đã giao hàng', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle2 },
     COMPLETED: { label: 'Hoàn thành', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: CheckCircle2 },
     CANCELLED: { label: 'Đã hủy', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle },
@@ -242,8 +242,11 @@ export default function CustomerOrderDetailPage() {
     const normalNoteText = hasCancelReason ? "" : rawNote;
 
     const displayArtisanName = order.artisanName || 'Gian Hàng Chế Tác';
-    const canCancel = !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status);
+
+    const canCancel = !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED', 'DELIVERED_AWAITING'].includes(order.status);
     const canConfirmDelivery = ['SHIPPING', 'DELIVERED_AWAITING'].includes(order.status);
+    const isDeliveredAwaiting = order.status === 'DELIVERED_AWAITING';
+
 
     return (
         <div className="min-h-screen font-sans text-[#3F2E23] bg-[#FDFBF7] flex flex-col">
@@ -299,6 +302,17 @@ export default function CustomerOrderDetailPage() {
                         )}
                     </div>
                 </div>
+
+                {/* Nhắc nhở xác nhận nếu là DELIVERED_AWAITING */}
+                {isDeliveredAwaiting && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 flex items-center gap-3 shadow-sm animate-in fade-in">
+                        <CheckCircle2 className="text-orange-500 w-6 h-6" />
+                        <div className="flex-1">
+                            <h2 className="text-base font-bold text-orange-700">Đơn hàng đã được giao đến bạn</h2>
+                            <p className="text-sm text-orange-700 mt-0.5">Vui lòng xác nhận đã nhận được hàng nhé!</p>
+                        </div>
+                    </div>
+                )}
 
                 {isCancelled && (
                     <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm animate-in fade-in">

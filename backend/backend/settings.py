@@ -98,7 +98,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [os.environ.get('REDIS_URL', 'redis://host.docker.internal:6379/1')],
+            "hosts": [os.environ.get('REDIS_URL', 'redis://redis:6379/1')],
         },
     },
 }
@@ -290,15 +290,15 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'resend'
 EMAIL_HOST_PASSWORD = os.environ.get('RESEND_API_KEY')
-DEFAULT_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL') # Email người gửi mặc định
+DEFAULT_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL')
 
 ODOO_URL = os.getenv('ODOO_URL')
 ODOO_DB = os.getenv('ODOO_DB')
 ODOO_USER = os.getenv('ODOO_USER')
 ODOO_PASSWORD = os.getenv('ODOO_PASSWORD')
 
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://host.docker.internal:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://host.docker.internal:6379/0')
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -307,6 +307,6 @@ CELERY_TIMEZONE = TIME_ZONE
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://host.docker.internal:6379/2'),
+        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://redis:6379/2'),
     }
 }
