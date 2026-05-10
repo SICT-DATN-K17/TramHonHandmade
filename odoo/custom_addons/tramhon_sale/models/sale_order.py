@@ -2,6 +2,7 @@ from odoo import models, fields, api
 import os
 import requests
 from datetime import timedelta
+from odoo.exceptions import UserError
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -80,7 +81,10 @@ class SaleOrder(models.Model):
         }
 
         try:
-            requests.post(endpoint, json=payload, headers=headers, timeout=3)
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=5)
+            response.raise_for_status() 
             _logger.info(f"Đã bắn Webhook SO {self.name} -> {self.x_web_status} cho Django ID {self.x_django_id}")
+            
         except Exception as e:
             _logger.error(f"Lỗi bắn Webhook Order {self.x_django_id} sang Django: {e}")
+            raise UserError("Mất kết nối với hệ thống Web. Đã hoàn tác cập nhật trạng thái đơn hàng để đảm bảo dữ liệu không bị lệch!")

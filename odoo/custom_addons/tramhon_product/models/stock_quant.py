@@ -26,7 +26,4 @@ class StockQuant(models.Model):
         for quant in self:
             product_tmpl = quant.product_id.product_tmpl_id
             if product_tmpl and product_tmpl.x_django_id:
-                try:
-                    product_tmpl._send_webhook_to_django(product_tmpl)
-                except Exception as e:
-                    _logger.error(f"Lỗi khi trigger webhook sản phẩm từ kho: {e}")
+                product_tmpl._send_webhook_to_django(product_tmpl)

@@ -1,6 +1,5 @@
 import xmlrpc.client
 import logging
-import time
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -19,36 +18,29 @@ class OdooClient:
             cls._instance.models = None
         return cls._instance
 
-    def connect(self, max_retries=10, delay=5):
+    def connect(self):
         if self.uid and self.models:
             return True
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
-                self.uid = common.authenticate(self.db, self.username, self.password, {})
+        try:
+            common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
+            self.uid = common.authenticate(self.db, self.username, self.password, {})
+            
+            if self.uid:
+                self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
+                logger.info(f"Kết nối Odoo thành công! UID: {self.uid}")
+                return True
+            else:
+                logger.error("Sai thông tin đăng nhập Odoo. Vui lòng check file .env!")
+                return False
                 
-                if self.uid:
-                    self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
-                    logger.info(f"Kết nối Odoo thành công! UID: {self.uid}")
-                    return True
-                else:
-                    logger.error("Sai thông tin đăng nhập Odoo (Email hoặc Mật khẩu). Vui lòng check file .env!")
-                    return False
-                    
-            except Exception as e:
-                logger.warning(f"Odoo chưa sẵn sàng (Lần thử {attempt}/{max_retries}). Đang đợi {delay}s để thử lại... Lỗi: {e}")
-                time.sleep(delay) # Nghỉ 5s rồi đập cửa tiếp
-                
-        logger.error("Đã hết thời gian chờ, không thể kết nối tới server Odoo!")
-        return False
+        except Exception as e:
+            logger.error(f"Odoo chưa sẵn sàng hoặc từ chối kết nối: {e}")
+            raise ConnectionError(f"Không thể kết nối tới Odoo: {e}")
 
     def execute(self, model_name, method_name, *args, **kwargs):
         if not self.uid or not self.models:
-            is_connected = self.connect()
-            if not is_connected:
-                logger.error(f"Hủy thực thi lệnh {model_name}.{method_name} do không có kết nối Odoo.")
-                return None
+            self.connect()
         
         try:
             return self.models.execute_kw(
@@ -59,6 +51,6 @@ class OdooClient:
             logger.error(f"Lỗi khi thực thi lệnh trên Odoo ({model_name}.{method_name}): {e}")
             self.uid = None 
             self.models = None
-            return None
+            raise ConnectionError(f"Thực thi lệnh thất bại: {e}")
 
 odoo = OdooClient()

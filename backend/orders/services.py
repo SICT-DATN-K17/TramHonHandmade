@@ -6,8 +6,10 @@ from chat.models import Chat
 from users.models import CustomUser
 import redis
 from django.conf import settings
-from orders.tasks import sync_order_to_odoo_task
+from services.odoo_client import odoo
+import logging
 
+logger = logging.getLogger(__name__)
 redis_client = redis.StrictRedis.from_url(settings.CACHES['default']['LOCATION'], decode_responses=True)
 
 def initialize_stock_in_redis(product_id, quantity):
@@ -20,11 +22,9 @@ def decrement_stock_redis(product_id, quantity_to_buy):
     current_val = redis_client.get(stock_key)
     
     if current_val is None:
-        from products.models import Product 
         product = Product.objects.get(id=product_id)
         initialize_stock_in_redis(product.id, product.stock_quantity)
     elif '.' in str(current_val):
-        # Auto-heal: Tự động sửa lỗi nếu Redis đang kẹt số thập phân
         initialize_stock_in_redis(product_id, current_val)
     
     current_stock = redis_client.decrby(stock_key, quantity_to_buy)
@@ -40,7 +40,6 @@ def refund_stock_redis(product_id, quantity_to_refund):
     current_val = redis_client.get(stock_key)
     
     if current_val is None:
-        from products.models import Product 
         product = Product.objects.get(id=product_id)
         initialize_stock_in_redis(product.id, product.stock_quantity)
     elif '.' in str(current_val):
@@ -48,6 +47,152 @@ def refund_stock_redis(product_id, quantity_to_refund):
         
     safe_qty = int(float(quantity_to_refund))
     redis_client.incrby(stock_key, safe_qty)
+
+def sync_order_to_odoo_sync(order):
+    customer_search = odoo.execute('res.partner', 'search', [('x_django_id', '=', order.customer.id)])
+    if customer_search:
+        odoo_customer_id = customer_search[0]
+    else:
+        odoo_customer_id = odoo.execute('res.partner', 'create', {
+            'name': order.customer.name,
+            'email': order.customer.email,
+            'phone': order.phone_number,
+            'x_django_id': order.customer.id,
+            'x_role': 'CUSTOMER'
+        })
+
+    odoo_artisan_id = False
+    if order.artisan:
+        artisan_search = odoo.execute('res.partner', 'search', [('x_django_id', '=', order.artisan.id)])
+        if artisan_search:
+            odoo_artisan_id = artisan_search[0]
+
+    order_lines = []
+    for item in order.items.all():
+        if not item.product:
+            continue
+            
+        template_search = odoo.execute('product.template', 'search', [('x_django_id', '=', item.product.id)])
+        if template_search:
+            product_search = odoo.execute('product.product', 'search', [('product_tmpl_id', '=', template_search[0])])
+            if product_search:
+                order_lines.append((0, 0, {
+                    'product_id': product_search[0],
+                    'product_uom_qty': item.quantity,
+                    'price_unit': float(item.price_order),
+                }))
+
+    if not order_lines:
+        raise ValueError(f"Order {order.id} không có sản phẩm nào khớp bên Odoo.")
+
+    so_payload = {
+        'partner_id': odoo_customer_id,
+        'x_django_id': order.id,
+        'x_artisan_id': odoo_artisan_id,
+        'x_web_address': order.address,
+        'x_web_phone': order.phone_number,
+        'x_web_note': order.note or '',
+        'x_payment_method': order.payment_method or '',
+        'x_web_status': order.status,
+        'order_line': order_lines,
+    }
+    
+    odoo_so_id = odoo.execute('sale.order', 'create', so_payload)
+    logger.info(f"Đã tạo Sale Order thành công trên Odoo: SO_ID = {odoo_so_id}")
+
+    so_id = odoo_so_id[0] if isinstance(odoo_so_id, list) else odoo_so_id
+    odoo.execute('sale.order', 'action_confirm', [so_id])
+
+    try:
+        template_records = odoo.execute('mail.template', 'search', [('id', '=', 12)])
+        if template_records:
+            odoo.execute('mail.template', 'send_mail', [template_records[0]], so_id, True)
+    except Exception:
+        pass
+
+def update_order_status_in_odoo_sync(order, new_status):
+    so_search = odoo.execute('sale.order', 'search', [('x_django_id', '=', order.id)])
+    if so_search:
+        so_id = so_search[0]
+        odoo.execute('sale.order', 'write', [so_id], {'x_web_status': new_status})
+        logger.info(f"Đã đồng bộ trạng thái {new_status} lên Odoo cho Order ID {order.id}")
+    else:
+        logger.warning(f"Không tìm thấy SO trên Odoo để update status cho Order {order.id}")
+
+def cancel_order_in_odoo_sync(order, cancel_note):
+    so_search = odoo.execute('sale.order', 'search', [('x_django_id', '=', order.id)])
+    if not so_search:
+        logger.warning(f"Không tìm thấy Sale Order cho Django Order {order.id} để hủy.")
+        return
+
+    so_id = so_search[0]
+    
+    if cancel_note:
+        odoo.execute('sale.order', 'write', [so_id], {'x_web_status': 'CANCELLED', 'x_web_note': cancel_note})
+    else:
+        odoo.execute('sale.order', 'write', [so_id], {'x_web_status': 'CANCELLED'})
+    
+    so_data = odoo.execute('sale.order', 'read', [so_id], ['state', 'picking_ids'])[0]
+
+    if so_data['state'] == 'cancel':
+        return
+
+    if so_data.get('picking_ids'):
+        pickings = odoo.execute('stock.picking', 'read', so_data['picking_ids'], ['state'])
+        for picking in pickings:
+            if picking['state'] == 'done':
+                moves = odoo.execute('stock.move', 'search_read', [
+                    ('picking_id', '=', picking['id']), 
+                    ('state', '=', 'done')
+                ], ['product_id', 'quantity_done'])
+                
+                return_moves = []
+                for move in moves:
+                    if move.get('quantity_done', 0) > 0:
+                        return_moves.append((0, 0, {
+                            'product_id': move['product_id'][0],
+                            'quantity': move['quantity_done'],
+                            'move_id': move['id']
+                        }))
+
+                if not return_moves:
+                    continue
+
+                return_wizard_id = odoo.execute('stock.return.picking', 'create', {
+                    'picking_id': picking['id'],
+                    'product_return_moves': return_moves
+                })
+                return_res = odoo.execute('stock.return.picking', 'create_returns', [return_wizard_id])
+                new_picking_id = return_res.get('res_id')
+                
+                if new_picking_id:
+                    odoo.execute('stock.picking', 'action_assign', [new_picking_id])
+                    new_moves = odoo.execute('stock.move', 'search', [('picking_id', '=', new_picking_id)])
+                    for move_id in new_moves:
+                        move_data = odoo.execute('stock.move', 'read', [move_id], ['product_uom_qty'])[0]
+                        odoo.execute('stock.move', 'write', [move_id], {'quantity_done': move_data['product_uom_qty']})
+                        
+                    odoo.execute('stock.picking', 'button_validate', [new_picking_id])
+
+    try:
+        template_records = odoo.execute('ir.model.data', 'search_read', 
+            [('module', '=', 'sale'), ('name', '=', 'mail_template_sale_cancellation')], 
+            ['res_id']
+        )
+        template_id = template_records[0]['res_id'] if template_records else False
+
+        wizard_vals = {'order_id': so_id}
+        if template_id:
+            wizard_vals['template_id'] = template_id
+
+        cancel_wizard_id = odoo.execute('sale.order.cancel', 'create', wizard_vals)
+        
+        odoo.execute('sale.order.cancel', 'action_send_mail_and_cancel', [cancel_wizard_id])
+        logger.info(f"Đã HỦY SO {so_id} và TỰ ĐỘNG GỬI EMAIL cho khách (Template ID: {template_id}).")
+    except Exception as e:
+        logger.warning(f"Không thể dùng wizard gửi mail, fallback về lệnh cancel gốc: {e}")
+        odoo.execute('sale.order', 'action_cancel', [so_id])
+        logger.info(f"Đã hủy SO {so_id} bằng action_cancel tiêu chuẩn.")
 
 def create_order_from_request(validated_data, user):
     items_data = validated_data.pop('items')
@@ -136,7 +281,11 @@ def create_order_from_request(validated_data, user):
                 chat.status = 'CLOSED'
                 chat.save(update_fields=['status'])
 
-            sync_order_to_odoo_task.delay(order.id)
+            try:
+                sync_order_to_odoo_sync(order)
+            except Exception as e:
+                logger.error(f"Lỗi đồng bộ Odoo khi tạo đơn: {e}")
+                raise ValidationError("Lỗi hệ thống, vui lòng thử lại sau!")
 
             return order
 

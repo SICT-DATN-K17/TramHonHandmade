@@ -1,12 +1,13 @@
 from celery import shared_task
 from django.apps import apps
 from services.odoo_client import odoo
+from orders.services import initialize_stock_in_redis
 import logging
 
 logger = logging.getLogger(__name__)
 
-@shared_task(bind=True, max_retries=3)
-def sync_product_to_odoo_task(self, product_id):
+@shared_task(bind=True, max_retries=2, default_retry_delay=15)
+def sync_product_to_odoo_task(self, product_id, old_product_data=None):
     try:
         Product = apps.get_model('products', 'Product')
         try:
@@ -49,7 +50,7 @@ def sync_product_to_odoo_task(self, product_id):
             template_id = odoo.execute('product.template', 'create', payload)
             action = "TẠO MỚI"
 
-        logger.info(f"Đã {action} vỏ sản phẩm '{prod.name}' trên Odoo (Template ID: {template_id})")
+        logger.info(f"Đã {action} sản phẩm '{prod.name}' trên Odoo (Template ID: {template_id})")
 
         if action == "TẠO MỚI":
             locations = odoo.execute('stock.location', 'search', [('usage', '=', 'internal')], limit=1)
@@ -85,8 +86,25 @@ def sync_product_to_odoo_task(self, product_id):
         return f"Sync success: {prod.name}"
 
     except Exception as exc:
-        logger.error(f"Lỗi sync Product ID {product_id}: {exc}")
-        raise self.retry(exc=exc, countdown=60)
+        if self.request.retries >= self.max_retries:
+            logger.error(f"[CRITICAL] Odoo sập! Kích hoạt ROLLBACK cho Product ID {product_id}")
+            
+            if old_product_data:
+                Product = apps.get_model('products', 'Product')
+                Product.objects.filter(id=product_id).update(**old_product_data)
+                
+                if 'stock_quantity' in old_product_data:
+                    try:
+                        initialize_stock_in_redis(product_id, old_product_data['stock_quantity'])
+                    except Exception as redis_err:
+                        logger.error(f"Lỗi rollback Redis: {redis_err}")
+                        
+                logger.info(f"-> Đã Rollback Product {product_id} về trạng thái cũ: {old_product_data}")
+            return f"Sync permanently failed. Product {product_id} rolled back."
+            
+        else:
+            logger.warning(f"Lỗi sync Product ID {product_id}: {exc}. Celery sẽ thử lại sau 15s...")
+            raise self.retry(exc=exc, countdown=15)
 
 @shared_task(bind=True, max_retries=3)
 def archive_product_in_odoo_task(self, product_id):

@@ -173,7 +173,6 @@ const ArtisanOrdersPage = () => {
                                 key={key}
                                 variant={isActive ? 'default' : 'outline'}
                                 onClick={() => setFilterStatus(key)}
-                                // Sử dụng config.badgeClass để đồng bộ màu sắc với Badge hiển thị[cite: 18]
                                 className={`rounded-full px-4 h-9 font-bold transition-all border-2 ${isActive
                                         ? `${config.badgeClass} shadow-md border-current`
                                         : 'border-[#E8D5B5] text-[#6B4F3E] hover:bg-[#FFF8F0] border-transparent'

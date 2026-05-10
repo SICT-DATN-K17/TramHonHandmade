@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 import requests
 import os
 import logging
@@ -28,6 +29,9 @@ class ResPartner(models.Model):
     def _send_webhook_to_django(self, record):
         django_url = os.environ.get('DJANGO_WEBHOOK_URL')
         secret_token = os.environ.get('ODOO_WEBHOOK_SECRET')
+        if not django_url or not secret_token:
+            _logger.warning("Chưa cấu hình DJANGO_WEBHOOK_URL hoặc ODOO_WEBHOOK_SECRET")
+            return
 
         endpoint = f"{django_url.rstrip('/')}/users/"
         payload = {
@@ -43,6 +47,9 @@ class ResPartner(models.Model):
             'X-Odoo-Token': secret_token
         }
         try:
-            requests.post(endpoint, json=payload, headers=headers, timeout=3)
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=5)
+            response.raise_for_status()
         except Exception as e:
-            _logger.error(f"Lỗi bắn Webhook sang Django cho user {record.x_django_id}: {e}")
+            _logger.error(f"Lỗi đồng bộ sang Web Django: {e}")
+            
+            raise UserError("Mất kết nối với hệ thống Web. Đã hoàn tác chỉnh sửa để đảm bảo dữ liệu không bị lệch!")

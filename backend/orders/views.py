@@ -13,12 +13,9 @@ from .serializers import (
     OrderRequestSerializer,
     OrderDetailSerializer,
     AdminOrderListSerializer,
-    OrderProgressResponseSerializer,
-    OrderStatusUpdateResponseSerializer,
 )
 from .permissions import IsOwnerOrArtisan
-from .services import create_order_from_request, refund_stock_redis
-from .tasks import *
+from .services import *
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +60,10 @@ class OrderViewSet(ModelViewSet):
             response_serializer = OrderDetailSerializer(order, context={'request': request})
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except ValidationError as e:
-            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            err_msg = e.detail[0] if isinstance(e.detail, list) else e.detail
+            return Response({"message": err_msg}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"detail": f"Lỗi tạo đơn hàng: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": f"Lỗi tạo đơn hàng: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_legacy(self, request, *args, **kwargs):
@@ -94,6 +92,12 @@ class OrderViewSet(ModelViewSet):
         if not new_status or new_status not in [s[0] for s in Order.STATUS_CHOICES]:
             return Response({"message": "Trạng thái không hợp lệ."}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            update_order_status_in_odoo_sync(order, new_status)
+        except Exception as e:
+            logger.error(f"Lỗi Odoo khi update status: {e}")
+            return Response({"message": "Lỗi hệ thống, vui lòng thử lại sau!"}, status=status.HTTP_400_BAD_REQUEST)
+
         order.status = new_status
         order.save(update_fields=['status'])
         return Response({"id": order.id, "status": order.status, "message": "Cập nhật trạng thái thành công"})
@@ -106,6 +110,12 @@ class OrderViewSet(ModelViewSet):
             return Response({"message": "Không thể hủy đơn hàng đã hoàn tất, đã hủy hoặc đã hoàn tiền!"}, status=status.HTTP_400_BAD_REQUEST)
 
         cancel_note = request.data.get('note', '')
+        
+        try:
+            cancel_order_in_odoo_sync(order, cancel_note)
+        except Exception as e:
+            logger.error(f"Lỗi Odoo khi hủy đơn hàng {order.id}: {e}")
+            return Response({"message": "Lỗi hệ thống, vui lòng thử lại sau!"}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             for item in order.items.all():
@@ -125,8 +135,6 @@ class OrderViewSet(ModelViewSet):
 
             order.save(update_fields=['status', 'note'])
 
-        cancel_order_in_odoo_task.delay(order.id)
-
         return Response({"message": f"Đã hủy đơn hàng thành công. Trạng thái: {order.status}"}, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['put'], url_path='confirm-delivery')
@@ -136,18 +144,22 @@ class OrderViewSet(ModelViewSet):
         if order.status not in ['SHIPPING', 'DELIVERED_AWAITING']:
             return Response({"message": "Đơn hàng chưa thể xác nhận nhận hàng lúc này!"}, status=status.HTTP_400_BAD_REQUEST)
             
+        try:
+            update_order_status_in_odoo_sync(order, 'DELIVERED')
+        except Exception as e:
+            logger.error(f"Lỗi Odoo khi confirm delivery: {e}")
+            return Response({"message": "Lỗi hệ thống, vui lòng thử lại sau!"}, status=status.HTTP_400_BAD_REQUEST)
+            
         order.status = 'DELIVERED'
         order.save(update_fields=['status'])
         
-        update_order_status_in_odoo_task.delay(order.id, 'DELIVERED')
-        
         return Response({"message": "Cảm ơn bạn đã xác nhận nhận hàng!"}, status=status.HTTP_200_OK)
 
+
 class OdooWebhookOrderView(APIView):
-    permission_classes = [] # RẤT QUAN TRỌNG: Mở toang cửa không bắt Auth để Odoo có thể gọi vào
+    permission_classes = [] 
     
     def post(self, request):
-        # 1. Xác thực bảo mật bằng Token
         secret_token = request.headers.get('X-Odoo-Token')
         if secret_token != os.environ.get('ODOO_WEBHOOK_SECRET'):
             return Response({"error": "Unauthorized. Webhook Token không khớp!"}, status=status.HTTP_403_FORBIDDEN)
@@ -160,8 +172,6 @@ class OdooWebhookOrderView(APIView):
             return Response({"error": "Thiếu dữ liệu (django_id hoặc status)"}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
-            from .models import Order
-            # Update trực tiếp trạng thái mà không cần chọc vào ORM lấy object ra (tối ưu hiệu năng)
             updated_count = Order.objects.filter(id=django_id).update(status=new_status)
             
             if updated_count:

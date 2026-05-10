@@ -21,4 +21,7 @@ class AccountMove(models.Model):
                 sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
                 for so in sale_orders:
                     if so.x_django_id and so.x_web_status == 'DELIVERED':
-                        so.sudo().write({'x_web_status': 'COMPLETED'})
+                        try:
+                            so.sudo().write({'x_web_status': 'COMPLETED'})
+                        except UserError as e:
+                            raise UserError(f"Thanh toán thành công nhưng lỗi đồng bộ sang Web: {e}")

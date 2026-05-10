@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import toast, { Toaster } from 'react-hot-toast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:8000';
 
 const getProductImageUrl = (path: string | null | undefined): string => {
     if (!path || path === 'undefined' || path === 'null' || path === '') return '/tramhon-logo.png';
@@ -251,11 +251,11 @@ export default function ArtisanOrderDetailPage() {
                         <div className="p-5 space-y-4 flex-grow">
                             {order.items.map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-4 pb-4 border-b border-dashed border-[#E8D5B5] last:border-0 last:pb-0">
-                                    <Link href={`/shop/id/${item.productId}`} className="relative w-16 h-16 rounded-xl overflow-hidden bg-[#F7F1E8] border border-[#E8D5B5] shrink-0 block hover:opacity-80 transition-opacity">
+                                    <Link href={`/artisan/products/${item.productId}`} className="relative w-16 h-16 rounded-xl overflow-hidden bg-[#F7F1E8] border border-[#E8D5B5] shrink-0 block hover:opacity-80 transition-opacity">
                                         <Image src={getProductImageUrl(item.image)} alt={item.productName} fill className="object-cover" />
                                     </Link>
                                     <div className="flex-1 min-w-0">
-                                        <Link href={`/shop/id/${item.productId}`}>
+                                        <Link href={`/artisan/products/${item.productId}`}>
                                             <h4 className="font-bold text-sm text-[#3F2E23] line-clamp-2 leading-snug hover:text-[#D96C39] transition-colors">{item.productName}</h4>
                                         </Link>
                                         <p className="text-xs text-[#6B4F3E] mt-1.5 font-medium">SL: {item.quantity}</p>

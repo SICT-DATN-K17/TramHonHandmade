@@ -2,8 +2,6 @@ from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 from .models import *
 from products.models import Product
-from products.serializers import ProductSerializer
-from users.serializers import CustomUserSerializer
 
 
 class OrderItemRequestSerializer(serializers.Serializer):
@@ -113,26 +111,3 @@ class OrderProgressItemSerializer(ModelSerializer):
     class Meta:
         model = OrderItem
         fields = ['product_name', 'quantity', 'price', 'image_url']
-
-
-class OrderProgressResponseSerializer(ModelSerializer):
-    order_date = serializers.DateTimeField(source='created_at')
-    total_price = serializers.DecimalField(max_digits=10, decimal_places=2)
-    is_custom_order = serializers.SerializerMethodField()
-    items = OrderProgressItemSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Order
-        fields = [
-            'id', 'status', 'order_date', 'total_price',
-            'is_custom_order', 'note', 'items'
-        ]
-
-    def get_is_custom_order(self, obj):
-        return obj.chat is not None
-
-
-class OrderStatusUpdateResponseSerializer(serializers.Serializer):
-    id = serializers.IntegerField(read_only=True)
-    status = serializers.CharField(read_only=True)
-    message = serializers.CharField(read_only=True)

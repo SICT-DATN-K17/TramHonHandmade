@@ -276,7 +276,7 @@ export default function ChatPage() {
 
                 {/* -------------------- 1. THANH ĐIỀU HƯỚNG (STICKY) -------------------- */}
                 {/* Tui thêm pt-2 để nó không dính sát mép trên và pb-6 để đẩy khối dưới xuống xa hơn */}
-                <div className="sticky top-0 z-20 bg-[#FDFBF7] pt-2 pb-6 flex-shrink-0">
+                <div className="sticky top-16 z-20 bg-[#FDFBF7] pt-2 pb-6 flex-shrink-0">
                     <div className="bg-white rounded-2xl border border-[#E8D5B5] p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
                         {/* Nút quay lại và Thông tin nghệ nhân */}
                         <div className="flex items-start gap-4">

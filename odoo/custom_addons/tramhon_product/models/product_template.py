@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 import os
 import requests
 import logging
@@ -56,6 +57,8 @@ class ProductTemplate(models.Model):
         }
 
         try:
-            requests.post(endpoint, json=payload, headers=headers, timeout=3)
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=5)
+            response.raise_for_status()
         except Exception as e:
             _logger.error(f"Lỗi bắn Webhook Product sang Django cho SP {record.x_django_id}: {e}")
+            raise UserError("Mất kết nối với hệ thống Web (Django). Đã hoàn tác chỉnh sửa sản phẩm để đảm bảo dữ liệu không bị lệch!")

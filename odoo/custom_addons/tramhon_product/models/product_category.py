@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 import os
 import requests
 import logging
@@ -36,7 +37,6 @@ class ProductCategory(models.Model):
             'django_id': record.x_django_id,
             'name': record.name,
             'slug': record.x_slug or "",
-            # Trick: Gửi biến 'active' dạng boolean để file views.py bên Django vẫn hiểu mà không cần sửa code
             'active': True if record.x_web_status == 'ACTIVE' else False, 
         }
 
@@ -46,6 +46,8 @@ class ProductCategory(models.Model):
         }
 
         try:
-            requests.post(endpoint, json=payload, headers=headers, timeout=3)
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=5)
+            response.raise_for_status()
         except Exception as e:
             _logger.error(f"Lỗi bắn Webhook Category sang Django: {e}")
+            raise UserError("Mất kết nối với hệ thống Web (Django). Đã hoàn tác chỉnh sửa danh mục để dữ liệu đồng bộ!")
