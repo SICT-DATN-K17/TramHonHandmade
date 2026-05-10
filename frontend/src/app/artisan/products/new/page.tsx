@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Image as ImageIcon, Loader2, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAxiosAuth from '@/hooks/useAxiosAuth';
-import { RawCategoryResponse } from '@/types/apiTypes';
 import { mapToEnrichedCategory, EnrichedCategory } from "@/utils/CategoryMapper";
 
 const NewProductPage = () => {
@@ -22,7 +21,6 @@ const NewProductPage = () => {
         price: '',
         description: '',
         categoryId: '',
-        stockQuantity: '',
         image: '',
         status: 'ACTIVE',
     });
@@ -37,7 +35,6 @@ const NewProductPage = () => {
         const fetchCategories = async () => {
             try {
                 const response = await axiosAuth.get<any>('/categories/');
-                // Xử lý Pagination
                 const rawCats = Array.isArray(response.data) ? response.data : response.data.content || [];
                 const cats = rawCats.map(mapToEnrichedCategory);
                 setCategories(cats);
@@ -66,10 +63,6 @@ const NewProductPage = () => {
             toast.error('Giá sản phẩm không hợp lệ (phải >= 0)');
             setLoading(false); return;
         }
-        if (!formData.stockQuantity || Number(formData.stockQuantity) < 0) {
-            toast.error('Số lượng tồn kho không hợp lệ (phải >= 0)');
-            setLoading(false); return;
-        }
 
         try {
             const payload = {
@@ -78,14 +71,14 @@ const NewProductPage = () => {
                 image: formData.image,
                 status: formData.status,
                 price: Number(formData.price) || 0,
-                stockQuantity: Number(formData.stockQuantity) || 0,
+                stockQuantity: 0, 
                 categoryId: Number(formData.categoryId),
             };
 
             await axiosAuth.post('/products/', payload);
 
             toast.success('Tạo sản phẩm mới thành công!');
-            window.dispatchEvent(new Event('products-refresh')); // Bắn tín hiệu làm mới bảng
+            window.dispatchEvent(new Event('products-refresh'));
             router.push('/artisan/products');
             router.refresh();
         } catch (error: any) {
@@ -99,7 +92,6 @@ const NewProductPage = () => {
 
     return (
         <div className="max-w-6xl mx-auto">
-            {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
                     <button
@@ -205,18 +197,16 @@ const NewProductPage = () => {
                                         style={{ borderColor: '#E8D5B5', color: '#D96C39' }}
                                     />
                                 </div>
+                                {/* Ô Tồn kho bị khóa cứng */}
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: '#3F2E23' }}>Số lượng tồn kho <span className="text-red-500">*</span></label>
-                                    <input
-                                        name="stockQuantity"
-                                        type="number"
-                                        min="0"
-                                        value={formData.stockQuantity}
-                                        onChange={handleChange}
-                                        placeholder="0"
-                                        className="w-full px-4 py-3 rounded-lg border bg-[#FFF8F0] focus:outline-none focus:ring-2 focus:ring-[#D96C39] transition-all text-xl font-bold"
-                                        style={{ borderColor: '#E8D5B5', color: '#3F2E23' }}
-                                    />
+                                    <label className="block text-sm font-semibold mb-2" style={{ color: '#3F2E23' }}>Số lượng tồn kho ban đầu</label>
+                                    <div className="w-full px-4 py-3 rounded-lg border flex items-center justify-between text-xl font-bold cursor-not-allowed select-none" style={{ backgroundColor: '#F3EAD8', borderColor: '#E8D5B5', color: '#8A7A6B' }}>
+                                        <span>0</span>
+                                        <Lock className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                    <p className="text-[11px] font-medium mt-2 leading-snug" style={{ color: '#8A7A6B' }}>
+                                        *Tồn kho mặc định bằng 0. Hệ thống quản lý kho vận sẽ tự động đồng bộ số lượng thực tế sau khi tạo.
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -49,7 +49,7 @@ const ProductFormPage = () => {
                 const categoriesRes = await axiosAuth.get<any>(`/categories/`);
                 const rawCats = Array.isArray(categoriesRes.data) ? categoriesRes.data : categoriesRes.data.content || [];
                 const mappedCategories = rawCats.map((cat: any) => ({
-                    id: cat.categoryId, // Lấy theo chuẩn camelCase từ Backend
+                    id: cat.categoryId,
                     name: cat.categoryName,
                 }));
                 setCategories(mappedCategories);
@@ -101,12 +101,40 @@ const ProductFormPage = () => {
         fetchData();
     }, [id, isNew, axiosAuth, router]);
 
+    useEffect(() => {
+        if (isNew) return; 
+
+        const fetchStockRealtime = async () => {
+            try {
+                const productRes = await axiosAuth.get<any>(`/products/${id}/`);
+                const latestStock = productRes.data.stockQuantity;
+                const latestSold = productRes.data.quantitySold;
+
+                setFormData(prev => prev ? { ...prev, stockQuantity: latestStock, quantitySold: latestSold } : prev);
+                setOriginalProduct(prev => prev ? { ...prev, stockQuantity: latestStock, quantitySold: latestSold } : prev);
+            } catch (error) {
+                console.error("Lỗi cập nhật tồn kho real-time:", error);
+            }
+        };
+
+        const intervalId = setInterval(fetchStockRealtime, 10000); // 10s gọi 1 lần
+        window.addEventListener('focus', fetchStockRealtime); // Mở lại tab là gọi luôn
+
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('focus', fetchStockRealtime);
+        };
+    }, [id, isNew, axiosAuth]);
+
     // Track unsaved changes
     useEffect(() => {
         if (isNew) {
             setIsDirty(true);
         } else if (originalProduct && formData) {
-            const hasChanged = JSON.stringify(originalProduct) !== JSON.stringify(formData);
+            // Không tính isDirty nếu chỉ thay đổi do Real-time (stockQuantity/quantitySold)
+            const origCompare = { ...originalProduct, stockQuantity: 0, quantitySold: 0 };
+            const formCompare = { ...formData, stockQuantity: 0, quantitySold: 0 };
+            const hasChanged = JSON.stringify(origCompare) !== JSON.stringify(formCompare);
             setIsDirty(hasChanged);
         } else {
             setIsDirty(false);
@@ -161,7 +189,7 @@ const ProductFormPage = () => {
             toast.error('Giá sản phẩm không được âm');
             return null;
         }
-        if (formData.stockQuantity === undefined || formData.stockQuantity < 0 || !Number.isInteger(formData.stockQuantity)) {
+        if (isNew && (formData.stockQuantity === undefined || formData.stockQuantity < 0 || !Number.isInteger(formData.stockQuantity))) {
             toast.error('Số lượng tồn kho phải là số nguyên không âm');
             return null;
         }
@@ -422,22 +450,35 @@ const ProductFormPage = () => {
                                     <option value="HIDDEN">Bị ẩn</option>
                                 </select>
                             </div>
+                            
+                            {/* KHỐI HIỂN THỊ TỒN KHO - KIỂM TRA ĐIỀU KIỆN TẠO MỚI HAY CŨ */}
                             <div>
                                 <div className="text-sm font-medium" style={{color: '#6B4F3E'}}>Số lượng tồn kho</div>
-                                <input
-                                    type="number"
-                                    name="stockQuantity"
-                                    min="0"
-                                    value={formData.stockQuantity || 0}
-                                    onChange={handleFormChange}
-                                    className="w-full font-semibold bg-transparent border-b-2 border-transparent focus:border-yellow-500 focus:outline-none py-1 text-lg"
-                                    style={{ color: '#3F2E23' }}
-                                />
+                                {isNew ? (
+                                    <input
+                                        type="number"
+                                        name="stockQuantity"
+                                        min="0"
+                                        value={formData.stockQuantity || 0}
+                                        onChange={handleFormChange}
+                                        className="w-full font-semibold bg-transparent border-b-2 border-transparent focus:border-yellow-500 focus:outline-none py-1 text-lg"
+                                        style={{ color: '#3F2E23' }}
+                                    />
+                                ) : (
+                                    <div className="font-semibold text-lg py-1 flex items-center gap-2" style={{color: '#3F2E23'}}>
+                                        {formData.stockQuantity || 0}
+                                        <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-normal">Tự động đồng bộ</span>
+                                    </div>
+                                )}
                             </div>
+
                            {!isNew && (
                              <div>
                                  <div className="text-sm font-medium" style={{color: '#6B4F3E'}}>Đã bán</div>
-                                 <div className="font-semibold text-lg py-1" style={{color: '#3F2E23'}}>{formData.quantitySold || 0}</div>
+                                 <div className="font-semibold text-lg py-1 flex items-center gap-2" style={{color: '#3F2E23'}}>
+                                     {formData.quantitySold || 0}
+                                     <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-normal">Cập nhật lúc khách đặt</span>
+                                 </div>
                              </div>
                            )}
                         </div>

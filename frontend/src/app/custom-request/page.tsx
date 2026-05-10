@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import useMyChats from "@/hooks/useMyChats";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageSquare, Calendar, ChevronRight, Store } from "lucide-react";
+import { Loader2, MessageSquare, Calendar, ChevronRight, Store, Filter } from "lucide-react";
 import { Header, Footer } from "@/components/common";
 import { axiosClient } from "@/lib/axios";
 import { User } from "@/types";
@@ -22,6 +22,9 @@ const getThumbnailUrl = (productImage?: string | null, referenceImage?: string |
 export default function MyChatsPage() {
     const { chatDataDetails, isLoading, error } = useMyChats();
     const [artisans, setArtisans] = useState<User[]>([]);
+    
+    // Thêm State quản lý bộ lọc
+    const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
     useEffect(() => {
         const fetchArtisans = async () => {
@@ -34,6 +37,12 @@ export default function MyChatsPage() {
         };
         fetchArtisans();
     }, []);
+
+    // Logic lọc danh sách Chat
+    const filteredChats = useMemo(() => {
+        if (filterStatus === 'ALL') return chatDataDetails;
+        return chatDataDetails.filter(c => (c.chat?.status?.toUpperCase() || 'PENDING') === filterStatus);
+    }, [chatDataDetails, filterStatus]);
 
     const renderStatusBadge = (status: string) => {
         const upperStatus = status?.toUpperCase() || 'PENDING';
@@ -152,81 +161,141 @@ export default function MyChatsPage() {
 
                 ) : (
                     <div className="max-w-5xl mx-auto">
-                        <div className="space-y-6">
-                            {chatDataDetails.map((chatDetail, idx) => (
-                                <div
-                                    key={chatDetail.chat.id}
-                                    className="group overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-md bg-white"
-                                    style={{ borderColor: '#E8D5B5', animation: `fadeInUp 0.5s ease-out ${idx * 0.1}s backwards` }}
-                                >
-                                    <div className="flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4" style={{ backgroundColor: '#FFF8F0', borderColor: '#E8D5B5' }}>
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2.5 rounded-full bg-orange-100 shadow-sm">
-                                                <MessageSquare size={20} style={{ color: '#D96C39' }} />
+                        {/* BỘ LỌC TRẠNG THÁI */}
+                        <div className="flex flex-wrap gap-2 mb-8 justify-center sm:justify-start">
+                            <Button
+                                variant={filterStatus === 'ALL' ? 'default' : 'outline'}
+                                onClick={() => setFilterStatus('ALL')}
+                                className={`rounded-full px-5 h-10 font-bold transition-all ${filterStatus === 'ALL'
+                                        ? 'bg-[#3F2E23] text-white shadow-md hover:bg-[#2A1F17]'
+                                        : 'border-[#E8D5B5] text-[#6B4F3E] hover:bg-[#FFF8F0] bg-white'
+                                    }`}
+                            >
+                                Tất cả ({chatDataDetails.length})
+                            </Button>
+                            {Object.entries({
+                                PENDING: { label: "Đang chờ", className: "bg-yellow-50 text-yellow-800 border-yellow-200" },
+                                NEGOTIATING: { label: "Đang thương lượng", className: "bg-blue-50 text-blue-800 border-blue-200" },
+                                ORDER_CREATED: { label: "Có báo giá mới", className: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+                                CLOSED: { label: "Đã chốt đơn", className: "bg-green-50 text-green-700 border-green-200" }
+                            }).map(([key, config]) => {
+                                const count = chatDataDetails.filter(c => (c.chat?.status?.toUpperCase() || 'PENDING') === key).length;
+                                // Ẩn nút nếu trạng thái đó không có đoạn chat nào (trừ khi đang được chọn)
+                                if (count === 0 && filterStatus !== key) return null;
+
+                                const isActive = filterStatus === key;
+                                return (
+                                    <Button
+                                        key={key}
+                                        variant={isActive ? 'default' : 'outline'}
+                                        onClick={() => setFilterStatus(key)}
+                                        className={`rounded-full px-5 h-10 font-bold transition-all border-2 ${isActive
+                                                ? `${config.className} shadow-md border-current`
+                                                : 'border-[#E8D5B5] text-[#6B4F3E] hover:bg-[#FFF8F0] border-transparent bg-white'
+                                            }`}
+                                    >
+                                        {config.label} ({count})
+                                    </Button>
+                                );
+                            })}
+                        </div>
+
+                        {/* DANH SÁCH CHAT ĐÃ LỌC */}
+                        {filteredChats.length === 0 ? (
+                            <div className="py-20 flex flex-col items-center bg-white rounded-3xl border border-[#E8D5B5] shadow-sm">
+                                <Filter size={40} className="text-[#E8D5B5] mb-4" />
+                                <p className="font-bold text-[#3F2E23] text-lg">Không tìm thấy yêu cầu nào khớp bộ lọc</p>
+                                <Button variant="link" onClick={() => setFilterStatus('ALL')} className="text-[#D96C39] mt-2">
+                                    Xem tất cả yêu cầu
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {filteredChats.map((chatDetail, idx) => {
+                                    // Xử lý lấy tên nghệ nhân linh hoạt từ data
+                                    const artisanName = chatDetail.artisan?.name || chatDetail.chat?.artisan?.name || chatDetail.chat?.artisan_name || "Gian hàng thủ công";
+
+                                    return (
+                                        <div
+                                            key={chatDetail.chat.id}
+                                            className="group overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-md bg-white"
+                                            style={{ borderColor: '#E8D5B5', animation: `fadeInUp 0.5s ease-out ${idx * 0.1}s backwards` }}
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4" style={{ backgroundColor: '#FFF8F0', borderColor: '#E8D5B5' }}>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="p-2.5 rounded-full bg-orange-100 shadow-sm">
+                                                        <MessageSquare size={20} style={{ color: '#D96C39' }} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-lg" style={{ color: '#3F2E23' }}>
+                                                            Yêu cầu #{chatDetail.chat.id}
+                                                        </span>
+                                                        <div className="flex items-center gap-2 text-xs mt-1 font-medium" style={{ color: '#6B4F3E' }}>
+                                                            {/* HIỂN THỊ TÊN NGHỆ NHÂN */}
+                                                            <Store size={14} className="text-[#D96C39]" /> 
+                                                            <span>{artisanName}</span>
+                                                            <span className="opacity-50 px-1">|</span>
+                                                            <Calendar size={14} className="text-[#D96C39]" /> 
+                                                            <span>{formatDate(chatDetail.chat.createdAt)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div>{renderStatusBadge(chatDetail.chat.status)}</div>
                                             </div>
-                                            <div>
-                                                <span className="font-bold text-lg" style={{ color: '#3F2E23' }}>
-                                                    Yêu cầu #{chatDetail.chat.id}
-                                                </span>
-                                                <div className="flex items-center gap-2 text-xs mt-1 font-medium" style={{ color: '#6B4F3E' }}>
-                                                    <Calendar size={14} /> {formatDate(chatDetail.chat.createdAt)}
+
+                                            <div className="p-6">
+                                                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
+                                                    
+                                                    <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl border bg-gray-50 shadow-sm" style={{ borderColor: '#E8D5B5' }}>
+                                                        <Image
+                                                            src={getThumbnailUrl(chatDetail.product?.image, chatDetail.chat?.referenceImage)}
+                                                            alt="Thumbnail"
+                                                            fill
+                                                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                                            sizes="96px"
+                                                        />
+                                                    </div>
+
+                                                    <div className="flex-1 w-full">
+                                                        <h4 className="font-bold text-xl mb-1 group-hover:text-[#D96C39] transition-colors" style={{ color: '#3F2E23' }}>
+                                                            {chatDetail.chat?.title || "Yêu cầu tùy chỉnh"}
+                                                        </h4>
+                                                        <p className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: '#D96C39' }}>
+                                                            <span className="text-[#6B4F3E] font-medium">Mẫu tham khảo:</span> {chatDetail.product?.name || "Thiết kế riêng"}
+                                                        </p>
+
+                                                        {chatDetail.chat?.description && (
+                                                            <div className="bg-[#F7F1E8] p-3 rounded-lg border border-[#E8D5B5]/50">
+                                                                <p className="text-sm line-clamp-2" style={{ color: '#6B4F3E', fontStyle: 'italic' }}>
+                                                                    &ldquo;{chatDetail.chat.description}&rdquo;
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="hidden md:block text-right">
+                                                        <Link href={`/chat/${chatDetail.chat.id}`}>
+                                                            <Button className="rounded-full text-white shadow-md hover:shadow-lg hover:-translate-y-1 transition-all px-6 py-5" style={{ backgroundColor: '#3F2E23' }}>
+                                                                Tiếp tục chat
+                                                                <ChevronRight size={18} className="ml-1" />
+                                                            </Button>
+                                                        </Link>
+                                                    </div>
+                                                </div>
+
+                                                <div className="md:hidden mt-5">
+                                                    <Link href={`/chat/${chatDetail.chat.id}`}>
+                                                        <Button className="w-full text-white py-6 rounded-xl font-bold" style={{ backgroundColor: '#3F2E23' }}>
+                                                            Tiếp tục trò chuyện
+                                                        </Button>
+                                                    </Link>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div>{renderStatusBadge(chatDetail.chat.status)}</div>
-                                    </div>
-
-                                    <div className="p-6">
-                                        <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                                            
-                                            <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl border bg-gray-50 shadow-sm" style={{ borderColor: '#E8D5B5' }}>
-                                                <Image
-                                                    src={getThumbnailUrl(chatDetail.product?.image, chatDetail.chat?.referenceImage)}
-                                                    alt="Thumbnail"
-                                                    fill
-                                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                                    sizes="96px"
-                                                />
-                                            </div>
-
-                                            <div className="flex-1 w-full">
-                                                <h4 className="font-bold text-xl mb-1 group-hover:text-[#D96C39] transition-colors" style={{ color: '#3F2E23' }}>
-                                                    {chatDetail.chat?.title || "Yêu cầu tùy chỉnh"}
-                                                </h4>
-                                                <p className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: '#D96C39' }}>
-                                                    <span className="text-[#6B4F3E] font-medium">Mẫu tham khảo:</span> {chatDetail.product?.name || "Thiết kế riêng"}
-                                                </p>
-
-                                                {chatDetail.chat?.description && (
-                                                    <div className="bg-[#F7F1E8] p-3 rounded-lg border border-[#E8D5B5]/50">
-                                                        <p className="text-sm line-clamp-2" style={{ color: '#6B4F3E', fontStyle: 'italic' }}>
-                                                            &ldquo;{chatDetail.chat.description}&rdquo;
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="hidden md:block text-right">
-                                                <Link href={`/chat/${chatDetail.chat.id}`}>
-                                                    <Button className="rounded-full text-white shadow-md hover:shadow-lg hover:-translate-y-1 transition-all px-6 py-5" style={{ backgroundColor: '#3F2E23' }}>
-                                                        Tiếp tục chat
-                                                        <ChevronRight size={18} className="ml-1" />
-                                                    </Button>
-                                                </Link>
-                                            </div>
-                                        </div>
-
-                                        <div className="md:hidden mt-5">
-                                            <Link href={`/chat/${chatDetail.chat.id}`}>
-                                                <Button className="w-full text-white py-6 rounded-xl font-bold" style={{ backgroundColor: '#3F2E23' }}>
-                                                    Tiếp tục trò chuyện
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {renderArtisanListHorizontal()}
                     </div>

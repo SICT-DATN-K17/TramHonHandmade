@@ -66,17 +66,18 @@ function ProductsPageContent() {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (searchTerm !== keywordParam) {
+            const currentKeyword = searchParams.get('keyword') || '';
+            if (searchTerm !== currentKeyword) {
                 updateUrlParams({ keyword: searchTerm, page: '1' });
             }
-        }, 500);
+        }, 800); 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchTerm]);
 
     useEffect(() => {
-        if (keywordParam !== searchTerm) {
-            setSearchTerm(keywordParam);
+        if (!keywordParam && searchTerm !== '') {
+            setSearchTerm('');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [keywordParam]);

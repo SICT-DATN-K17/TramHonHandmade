@@ -1,19 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react'; // IMPORT THÊM USESESSION
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 import {
-  CircleUser,
-  Home,
-  Menu,
-  MessageSquare,
-  Package,
-  ShoppingCart,
-  X,
+  CircleUser, Home, Menu, MessageSquare, Package, ShoppingCart, X,
 } from 'lucide-react';
 
 // --- Dropdown User Menu ---
@@ -28,9 +22,7 @@ const UserDropdown = () => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuRef]);
 
   return (
@@ -87,6 +79,27 @@ const NavLink = ({ href, children, isCollapsed, exact = false }: { href: string,
 export default function ArtisanLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // XỬ LÝ TÊN NGƯỜI DÙNG & REAL-TIME CẬP NHẬT
+  const { data: session, update } = useSession();
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    if (session?.user?.name) setUserName(session.user.name);
+  }, [session]);
+
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail?.name) {
+        setUserName(e.detail.name);
+        update({ name: e.detail.name });
+      } else {
+        update();
+      }
+    };
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    return () => window.removeEventListener('profile-updated', handleProfileUpdate);
+  }, [update]);
 
   const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
   
@@ -165,7 +178,17 @@ export default function ArtisanLayout({ children }: { children: React.ReactNode 
             </button>
             
             <div className="w-full flex-1"></div>
-            <UserDropdown />
+            
+            {/* KHỐI HIỂN THỊ TÊN NGƯỜI DÙNG */}
+            <div className="flex items-center gap-3">
+               <div className="hidden md:flex flex-col items-end">
+                  <span className="text-sm font-bold leading-tight" style={{ color: '#3F2E23' }}>
+                      {userName || 'Đang tải...'}
+                  </span>
+               </div>
+               <UserDropdown />
+            </div>
+            
           </header>
           <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10">
             {children}
