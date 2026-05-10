@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -63,7 +63,7 @@ export default function CustomerOrderDetailPage() {
     const params = useParams();
     const router = useRouter();
     const axiosAuth = useAxiosAuth();
-    const { cancelOrder, refetch } = useMyOrders();
+    const { cancelOrder, refetch } = useMyOrders(); // Giữ lại refetch để đồng bộ mảng List ở trang ngoài
     
     const orderId = Number(params.id);
     const [order, setOrder] = useState<MappedOrder | null>(null);
@@ -77,75 +77,95 @@ export default function CustomerOrderDetailPage() {
     
     const [isConfirming, setIsConfirming] = useState(false);
 
-    useEffect(() => {
+    // ==========================================
+    // LÔ-GÍC FETCH REAL-TIME (TẢI NGẦM)
+    // ==========================================
+    const fetchOrder = useCallback(async (isSilent = false) => {
         if (!orderId || isNaN(orderId)) {
-            setError("Mã đơn hàng không hợp lệ.");
-            setLoading(false);
+            if (!isSilent) setError("Mã đơn hàng không hợp lệ.");
+            if (!isSilent) setLoading(false);
             return;
         }
 
-        const fetchOrder = async () => {
-            try {
-                const response = await axiosAuth.get<RawOrderDetail>(`/orders/${orderId}`);
-                const orderData = response.data;
+        try {
+            if (!isSilent) setLoading(true);
+            const response = await axiosAuth.get<RawOrderDetail>(`/orders/${orderId}`);
+            const orderData = response.data;
 
-                const mapBackendStatus = (s: string): OrderStatusType => {
-                    const valid = ['PENDING_PICKUP', 'PACKAGING', 'SHIPPING', 'DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'];
-                    const upper = s?.toUpperCase();
-                    return valid.includes(upper) ? (upper as OrderStatusType) : 'PENDING_PICKUP';
-                };
+            const mapBackendStatus = (s: string): OrderStatusType => {
+                const valid = ['PENDING_PICKUP', 'PACKAGING', 'SHIPPING', 'DELIVERED_AWAITING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REFUNDED'];
+                const upper = s?.toUpperCase();
+                return valid.includes(upper) ? (upper as OrderStatusType) : 'PENDING_PICKUP';
+            };
 
-                const mapBackendPayment = (m: string) => {
-                    switch (m) {
-                        case 'COD': return 'cod';
-                        case 'ONLINE':
-                        case 'BANK_TRANSFER': return 'bank_transfer';
-                        default: return 'cod';
-                    }
-                };
+            const mapBackendPayment = (m: string) => {
+                switch (m) {
+                    case 'COD': return 'cod';
+                    case 'ONLINE':
+                    case 'BANK_TRANSFER': return 'bank_transfer';
+                    default: return 'cod';
+                }
+            };
 
-                const subtotal = Number(orderData.totalPrice || 0);
+            const subtotal = Number(orderData.totalPrice || 0);
 
-                const mappedOrder: MappedOrder = {
-                    id: orderData.id,
-                    orderNumber: `ART-${orderData.id}`,
-                    customerName: orderData.customerName,
+            const mappedOrder: MappedOrder = {
+                id: orderData.id,
+                orderNumber: `ART-${orderData.id}`,
+                customerName: orderData.customerName,
+                phone: orderData.customerPhone,
+                status: mapBackendStatus(orderData.status),
+                createdAt: orderData.orderDate,
+                subtotal: subtotal,
+                shippingFee: 0, 
+                total: subtotal, 
+                paymentMethod: mapBackendPayment(orderData.paymentMethod),
+                artisanId: orderData.artisanId,
+                artisanName: orderData.artisanName,
+                shippingAddress: {
+                    fullName: orderData.customerName,
                     phone: orderData.customerPhone,
-                    status: mapBackendStatus(orderData.status),
-                    createdAt: orderData.orderDate,
-                    subtotal: subtotal,
-                    shippingFee: 0, 
-                    total: subtotal, 
-                    paymentMethod: mapBackendPayment(orderData.paymentMethod),
-                    artisanId: orderData.artisanId,
-                    artisanName: orderData.artisanName,
-                    shippingAddress: {
-                        fullName: orderData.customerName,
-                        phone: orderData.customerPhone,
-                        email: '',
-                        address: orderData.shippingAddress,
-                        note: orderData.note || undefined,
-                    },
-                    items: orderData.items.map((item: RawOrderDetailItem) => ({
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: Number(item.quantity || 0),
-                        price: Number(item.priceOrder || item.price || 0),
-                        image: item.productImage || undefined,
-                    })),
-                };
+                    email: '',
+                    address: orderData.shippingAddress,
+                    note: orderData.note || undefined,
+                },
+                items: orderData.items.map((item: RawOrderDetailItem) => ({
+                    productId: item.productId,
+                    productName: item.productName,
+                    quantity: Number(item.quantity || 0),
+                    price: Number(item.priceOrder || item.price || 0),
+                    image: item.productImage || undefined,
+                })),
+            };
 
-                setOrder(mappedOrder);
-            } catch (err: any) {
-                console.error(err);
-                setError(err.response?.data?.message || "Không thể tải chi tiết đơn hàng.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchOrder();
+            setOrder(mappedOrder);
+            if (!isSilent) setError(null);
+        } catch (err: any) {
+            console.error(err);
+            if (!isSilent) setError(err.response?.data?.message || "Không thể tải chi tiết đơn hàng.");
+        } finally {
+            if (!isSilent) setLoading(false);
+        }
     }, [orderId, axiosAuth]);
+
+    useEffect(() => {
+        fetchOrder(false); // Lần đầu vào trang -> Hiện loading
+
+        // Tải ngầm mỗi 10 giây
+        const intervalId = setInterval(() => {
+            fetchOrder(true);
+        }, 10000);
+
+        // Tải ngầm khi người dùng quay lại tab
+        const handleFocus = () => fetchOrder(true);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [fetchOrder]);
+    // ==========================================
 
     const closeCancelModal = () => {
         if (!isCancelling) {
@@ -162,8 +182,8 @@ export default function CustomerOrderDetailPage() {
             await axiosAuth.put(`/orders/${orderId}/confirm-delivery/`);
             toast.success(<b>Đã xác nhận nhận hàng! Cảm ơn bạn.</b>, { id: toastId });
             
-            setOrder(prev => prev ? { ...prev, status: 'DELIVERED' } : null);
-            if (refetch) refetch(); 
+            fetchOrder(true); // Cập nhật lại UI hiện tại
+            if (refetch) refetch(); // Làm mới data ở trang Danh sách đơn bên ngoài
         } catch (err: any) {
             toast.error(<b>{err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận.'}</b>, { id: toastId });
         } finally {
@@ -192,8 +212,7 @@ export default function CustomerOrderDetailPage() {
             await cancelOrder(orderId, cancelNoteText);
             toast.success(<b>Đã hủy đơn hàng #{orderId} thành công!</b>, { id: toastId });
             
-            setOrder(prev => prev ? { ...prev, status: 'CANCELLED', shippingAddress: { ...prev.shippingAddress, note: (prev.shippingAddress.note ? prev.shippingAddress.note + " | " : "") + cancelNoteText } } : null);
-            
+            fetchOrder(true); // Tải lại data để lấy note và status mới nhất
             closeCancelModal();
         } catch (err: any) {
             toast.error(<b>{err.message || 'Lỗi khi hủy đơn'}</b>, { id: toastId });
@@ -273,7 +292,7 @@ export default function CustomerOrderDetailPage() {
                     
                     <div className="flex flex-wrap items-center gap-3">
                         {!isCancelled && statusConfig[order.status] && (
-                            <div className={`px-3 py-1.5 rounded-full border ${statusConfig[order.status].bg} ${statusConfig[order.status].border} ${statusConfig[order.status].text} text-sm font-bold flex items-center gap-1.5 shadow-sm w-max`}>
+                            <div className={`px-3 py-1.5 rounded-full border ${statusConfig[order.status].bg} ${statusConfig[order.status].border} ${statusConfig[order.status].text} text-sm font-bold flex items-center gap-1.5 shadow-sm w-max transition-colors duration-500`}>
                                 <StatusIcon size={16} /> {statusConfig[order.status].label}
                             </div>
                         )}

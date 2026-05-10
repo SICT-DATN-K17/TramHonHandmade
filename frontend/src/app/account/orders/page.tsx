@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import useMyOrders from "@/hooks/useMyOrders";
 import useAxiosAuth from "@/hooks/useAxiosAuth";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import toast, { Toaster } from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-// Cấu hình trạng thái đồng bộ với backend và giao diện khách hàng
 const statusConfig: Record<string, { label: string; className: string; icon: string }> = {
     PENDING_PICKUP: { label: "Đang chờ lấy hàng", className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "⏳" },
     PACKAGING: { label: "Đang đóng gói hàng", className: "bg-blue-50 text-blue-700 border-blue-200", icon: "📦" },
@@ -41,12 +39,51 @@ const getProductImageUrl = (path: string | null | undefined): string => {
 };
 
 export default function MyOrdersPage() {
-    const { orders, isLoading, error, refetch } = useMyOrders();
     const axiosAuth = useAxiosAuth();
+    
+    // Tự quản lý State thay vì dùng Hook để tránh giật loading
+    const [orders, setOrders] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [isConfirmingId, setIsConfirmingId] = useState<number | null>(null);
-
-    // State quản lý bộ lọc trạng thái
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
+
+    // ==========================================
+    // LÔ-GÍC FETCH REAL-TIME (TẢI NGẦM)
+    // ==========================================
+    const fetchOrders = useCallback(async (isSilent = false) => {
+        try {
+            if (!isSilent) setIsLoading(true);
+            const response = await axiosAuth.get('/orders/my-orders/');
+            // Hỗ trợ cả object phân trang lẫn array thẳng
+            const data = Array.isArray(response.data) ? response.data : response.data.content || response.data.results || [];
+            
+            setOrders(data);
+            if (!isSilent) setError(null);
+        } catch (err: any) {
+            console.error("Lỗi lấy danh sách đơn hàng:", err);
+            if (!isSilent) setError("Không thể tải danh sách đơn hàng. Vui lòng thử lại sau.");
+        } finally {
+            if (!isSilent) setIsLoading(false);
+        }
+    }, [axiosAuth]);
+
+    useEffect(() => {
+        fetchOrders(false); // Lần đầu vào web -> Bật cờ hiện Vòng quay Loading
+
+        const intervalId = setInterval(() => {
+            fetchOrders(true); // Các lần sau (mỗi 10s) -> isSilent = true -> Ẩn Loading
+        }, 10000);
+
+        const handleFocus = () => fetchOrders(true);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [fetchOrders]);
+    // ==========================================
 
     const confirmDelivery = async (orderId: number) => {
         setIsConfirmingId(orderId);
@@ -54,7 +91,7 @@ export default function MyOrdersPage() {
         try {
             await axiosAuth.put(`/orders/${orderId}/confirm-delivery/`);
             toast.success(<b>Đã xác nhận nhận hàng! Cảm ơn bạn.</b>, { id: toastId });
-            if (refetch) refetch();
+            fetchOrders(true); // Xác nhận xong tải ngầm lại luôn
         } catch (err: any) {
             toast.error(<b>{err.response?.data?.message || 'Có lỗi xảy ra khi xác nhận.'}</b>, { id: toastId });
         } finally {
@@ -123,6 +160,7 @@ export default function MyOrdersPage() {
                     </div>
                 ) : (
                     <div className="space-y-8 max-w-5xl mx-auto">
+                        {/* Filter Tabs */}
                         <div className="flex flex-wrap items-center justify-center gap-3 bg-white p-4 rounded-3xl border border-[#E8D5B5] shadow-sm">
                             <button
                                 onClick={() => setFilterStatus('ALL')}
@@ -134,23 +172,18 @@ export default function MyOrdersPage() {
                                 Tất cả ({orders.length})
                             </button>
                             {[
-                                { id: "PENDING_PICKUP", label: "Đang chờ lấy hàng", icon: "⏳", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-                                { id: "PACKAGING", label: "Đang đóng gói hàng", icon: "📦", className: "bg-blue-50 text-blue-700 border-blue-200" },
-                                { id: "SHIPPING", label: "Đang giao hàng", icon: "🚚", className: "bg-purple-50 text-purple-700 border-purple-200" },
+                                { id: "PENDING_PICKUP", label: "Đang chờ lấy", icon: "⏳", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+                                { id: "PACKAGING", label: "Đang đóng gói", icon: "📦", className: "bg-blue-50 text-blue-700 border-blue-200" },
+                                { id: "SHIPPING", label: "Đang giao", icon: "🚚", className: "bg-purple-50 text-purple-700 border-purple-200" },
                                 { id: "DELIVERED", label: "Đã giao hàng", icon: "📬", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
                                 { id: "COMPLETED", label: "Hoàn thành", icon: "✅", className: "bg-green-50 text-green-700 border-green-200" },
                                 { id: "CANCELLED", label: "Đã hủy", icon: "❌", className: "bg-red-50 text-red-700 border-red-200" },
                                 { id: "REFUNDED", label: "Đã hoàn tiền", icon: "💸", className: "bg-gray-50 text-gray-700 border-gray-200" },
                             ].map((tab) => {
-                                let count = 0;
-                                if (tab.id === 'SHIPPING') {
-                                    // Tab Đang giao hàng: Đếm gộp số lượng của SHIPPING và DELIVERED_AWAITING
-                                    count = orders.filter((o: any) => ['SHIPPING', 'DELIVERED_AWAITING'].includes((o.status || '').toUpperCase())).length;
-                                } else {
-                                    count = orders.filter((o: any) => (o.status || '').toUpperCase() === tab.id).length;
-                                }
+                                let count = tab.id === 'SHIPPING' 
+                                    ? orders.filter((o: any) => ['SHIPPING', 'DELIVERED_AWAITING'].includes((o.status || '').toUpperCase())).length 
+                                    : orders.filter((o: any) => (o.status || '').toUpperCase() === tab.id).length;
 
-                                // Ẩn tab nếu không có đơn hàng nào
                                 if (count === 0 && filterStatus !== tab.id) return null;
 
                                 const isActive = filterStatus === tab.id;
@@ -182,7 +215,6 @@ export default function MyOrdersPage() {
                                     const rawNote = order.note || "";
                                     const hasCancelReason = rawNote.includes("Lý do hủy đơn:");
                                     const cancelReasonText = hasCancelReason ? rawNote.replace("Lý do hủy đơn:", "").trim() : "";
-
                                     const canConfirmDelivery = ['SHIPPING', 'DELIVERED_AWAITING'].includes(order.status?.toUpperCase() || '');
 
                                     return (
@@ -191,7 +223,6 @@ export default function MyOrdersPage() {
                                             className={`group overflow-hidden rounded-2xl border transition-all duration-500 hover:shadow-md bg-white animate-in fade-in slide-in-from-bottom-4 ${isCancelled ? 'border-red-200' : 'border-[#E8D5B5]'}`}
                                             style={{ animationFillMode: 'both', animationDelay: `${idx * 50}ms` }}
                                         >
-                                            {/* Phần Header đơn hàng giữ nguyên[cite: 19] */}
                                             <div className={`flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 ${isCancelled ? 'bg-red-50/50 border-red-100' : 'bg-[#FFF8F0] border-[#E8D5B5]'}`}>
                                                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
                                                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm ${isCancelled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-[#E8D5B5] text-[#3F2E23]'}`}>
@@ -199,7 +230,8 @@ export default function MyOrdersPage() {
                                                         <span className="font-bold text-lg">#{order.orderNumber || order.id}</span>
                                                     </div>
                                                     <div className="flex items-center gap-2 text-sm font-medium text-[#6B4F3E]">
-                                                        <Calendar size={16} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />{formatDate(order.createdAt || order.orderDate)}
+                                                        {/* Lấy đúng key ngày tháng từ DB */}
+                                                        <Calendar size={16} className={isCancelled ? 'text-red-500' : 'text-[#D96C39]'} />{formatDate(order.createdAt || order.orderDate || order.order_date || order.created_at)}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">{renderStatusBadge(order.status || '')}</div>
@@ -220,21 +252,22 @@ export default function MyOrdersPage() {
                                             <div className="p-6">
                                                 <div className="space-y-4">
                                                     {order.items.map((item: any, index: number) => {
-                                                        const imageUrl = getProductImageUrl(item.productImage || item.imageUrl || item.image);
+                                                        // Lấy đúng key hình ảnh và tên từ DB
+                                                        const imageUrl = getProductImageUrl(item.productImage || item.imageUrl || item.image || item.product_image);
                                                         return (
                                                             <div key={index} className="flex gap-4 items-center bg-[#FDFBF7] p-3 rounded-xl border border-[#E8D5B5]/50">
                                                                 <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-[#E8D5B5] bg-white shadow-sm">
-                                                                    <Image src={imageUrl} alt={item.productName || 'Product'} fill className="object-cover" />
+                                                                    <Image src={imageUrl} alt={item.productName || item.product_name || 'Product'} fill className="object-cover" />
                                                                 </div>
                                                                 <div className="flex flex-1 flex-col justify-center">
-                                                                    <h4 className="font-bold text-base line-clamp-2 leading-snug" style={{ color: '#3F2E23' }}>{item.productName}</h4>
+                                                                    <h4 className="font-bold text-base line-clamp-2 leading-snug" style={{ color: '#3F2E23' }}>{item.productName || item.product_name}</h4>
                                                                     <p className="text-sm mt-1.5 font-medium bg-[#E8D5B5]/30 px-2 py-0.5 rounded-md inline-block w-max" style={{ color: '#6B4F3E' }}>
                                                                         Số lượng: <span className="font-bold text-[#3F2E23]">x{item.quantity}</span>
                                                                     </p>
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <p className="font-black text-lg" style={{ color: '#D96C39' }}>
-                                                                        {formatCurrency(Number(item.priceOrder || item.price || 0))}
+                                                                        {formatCurrency(Number(item.priceOrder || item.price_order || item.price || 0))}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -247,7 +280,8 @@ export default function MyOrdersPage() {
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-sm font-medium uppercase tracking-wider" style={{ color: '#6B4F3E' }}>Tổng giá trị:</span>
                                                     <span className="text-2xl font-black" style={{ color: '#D96C39' }}>
-                                                        {formatCurrency(Number(order.totalPrice || order.total || 0))}
+                                                        {/* Lấy đúng key tổng giá từ DB */}
+                                                        {formatCurrency(Number(order.totalPrice || order.total_price || order.total || 0))}
                                                     </span>
                                                 </div>
 
