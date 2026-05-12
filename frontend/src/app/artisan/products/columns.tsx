@@ -31,8 +31,12 @@ export const columns: ColumnDef<Product>[] = [
   },
   {
     accessorKey: 'name',
-    header: 'Tên sản phẩm',
-    cell: ({ row }) => <span className="font-semibold line-clamp-2">{row.original.name}</span>
+    header: () => <div className="w-[200px] lg:w-[300px]">Tên sản phẩm</div>,
+    cell: ({ row }) => (
+      <div className="w-[200px] lg:w-[300px]" title={row.original.name}>
+        <span className="font-semibold line-clamp-2">{row.original.name}</span>
+      </div>
+    )
   },
   {
     accessorKey: 'price',
@@ -52,13 +56,15 @@ export const columns: ColumnDef<Product>[] = [
   },
   {
     accessorKey: 'status',
-    header: 'Trạng thái',
+    header: () => <div className="w-[110px]">Trạng thái</div>,
     cell: ({ row }) => {
       const isActive = row.original.status === 'ACTIVE';
       return (
-        <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${isActive ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>
-          {isActive ? 'Hoạt động' : 'Bị ẩn'}
-        </span>
+        <div className="w-[110px]">
+          <span className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold border ${isActive ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+            {isActive ? 'Hoạt động' : 'Bị ẩn'}
+          </span>
+        </div>
       );
     }
   },

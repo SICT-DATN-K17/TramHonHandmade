@@ -44,8 +44,6 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
-    volumes:
-      - ./backend:/app
 
   celery_worker:
     build: ./backend
@@ -57,8 +55,6 @@ services:
     env_file: ./backend/.env
     command: celery -A backend worker -l info
     restart: unless-stopped
-    volumes:
-      - ./backend:/app
   
   redis:
     image: redis:7-alpine
@@ -76,10 +72,6 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
-    #Bỏ hot reload, comment 3d:
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
 
 volumes:
   odoo-web-data:
