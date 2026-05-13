@@ -98,17 +98,11 @@ def sync_order_to_odoo_sync(order):
     }
     
     odoo_so_id = odoo.execute('sale.order', 'create', so_payload)
-    logger.info(f"Đã tạo Sale Order thành công trên Odoo: SO_ID = {odoo_so_id}")
-
     so_id = odoo_so_id[0] if isinstance(odoo_so_id, list) else odoo_so_id
-    odoo.execute('sale.order', 'action_confirm', [so_id])
+    logger.info(f"Đã tạo Sale Order thành công trên Odoo: SO_ID = {so_id}")
 
-    try:
-        template_records = odoo.execute('mail.template', 'search', [('id', '=', 12)])
-        if template_records:
-            odoo.execute('mail.template', 'send_mail', [template_records[0]], so_id, True)
-    except Exception:
-        pass
+    from orders.tasks import confirm_and_send_mail_odoo_task
+    transaction.on_commit(lambda: confirm_and_send_mail_odoo_task.delay(so_id))
 
 def update_order_status_in_odoo_sync(order, new_status):
     so_search = odoo.execute('sale.order', 'search', [('x_django_id', '=', order.id)])

@@ -47,8 +47,11 @@ class OdooClient:
                 self.db, self.uid, self.password,
                 model_name, method_name, args, kwargs
             )
+        except xmlrpc.client.Fault as e:
+            logger.error(f"Lỗi Logic Odoo ({model_name}.{method_name}): {e.faultString}")
+            raise e
         except Exception as e:
-            logger.error(f"Lỗi khi thực thi lệnh trên Odoo ({model_name}.{method_name}): {e}")
+            logger.error(f"Lỗi mạng khi thực thi lệnh trên Odoo ({model_name}.{method_name}): {e}")
             self.uid = None 
             self.models = None
             raise ConnectionError(f"Thực thi lệnh thất bại: {e}")
