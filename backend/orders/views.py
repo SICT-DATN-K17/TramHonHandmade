@@ -110,13 +110,12 @@ class OrderViewSet(ModelViewSet):
             return Response({"message": "Không thể hủy đơn hàng đã hoàn tất, đã hủy hoặc đã hoàn tiền!"}, status=status.HTTP_400_BAD_REQUEST)
 
         cancel_note = request.data.get('note', '')
-        
         try:
-            cancel_order_in_odoo_sync(order, cancel_note)
+            so_id = cancel_order_in_odoo_sync(order, cancel_note)
         except Exception as e:
-            logger.error(f"Lỗi Odoo khi hủy đơn hàng {order.id}: {e}")
-            return Response({"message": "Lỗi hệ thống, vui lòng thử lại sau!"}, status=status.HTTP_400_BAD_REQUEST)
-
+            logger.error(f"Lỗi kết nối Odoo khi hủy đơn {order.id}: {e}")
+            return Response({"message": "Lỗi hệ thống, không thể kết nối máy chủ để hủy đơn!"}, status=status.HTTP_400_BAD_REQUEST)
+        
         with transaction.atomic():
             for item in order.items.all():
                 if item.product:
@@ -134,7 +133,10 @@ class OrderViewSet(ModelViewSet):
                     order.note = cancel_note
 
             order.save(update_fields=['status', 'note'])
-
+            if so_id:
+                from .tasks import process_heavy_cancel_in_odoo_task
+                transaction.on_commit(lambda: process_heavy_cancel_in_odoo_task.delay(so_id))
+                
         return Response({"message": f"Đã hủy đơn hàng thành công. Trạng thái: {order.status}"}, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['put'], url_path='confirm-delivery')
